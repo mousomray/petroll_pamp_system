@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,11 +26,64 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta
+          name="description"
+          content="Responsive Admin Dashboard Template based on Bootstrap 5"
+        />
+        <meta name="author" content="AdminKit" />
+        <meta
+          name="keywords"
+          content="adminkit, bootstrap, admin, dashboard, template"
+        />
+
+        <link rel="shortcut icon" href="/img/icons/icon-48x48.png" />
+        <link rel="canonical" href="https://demo-basic.adminkit.io/" />
+
+        <title>Admin Panel</title>
+
+        <link href="/css/app.css" rel="stylesheet" precedence="default" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap"
+          rel="stylesheet"
+          precedence="default"
+        />
+      </head>
+
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
-      </body>
-    </html>
+
+        {/* Load AdminKit app JS after hydration so DOM is ready */}
+        <Script src="/js/app.js" strategy="afterInteractive" />
+
+        {/* Footer client logic: set current year and back-to-top behavior */}
+        <Script id="footer-scripts" strategy="afterInteractive">
+          {`(function(){
+            try {
+              var y = new Date().getFullYear();
+              var el = document.getElementById('currentYear');
+              if(el) el.textContent = y;
+
+              var btn = document.getElementById('btnBackToTop');
+              if(!btn) return;
+              var onScroll = function(){
+                if(window.scrollY > 300){ btn.style.display = 'block'; }
+                else { btn.style.display = 'none'; }
+              };
+              window.addEventListener('scroll', onScroll, { passive: true });
+              btn.addEventListener('click', function(){ window.scrollTo({ top:0, behavior:'smooth' }); });
+              // initialise visibility
+              onScroll();
+            } catch(e){ console.error('Footer script error', e); }
+          })();`}
+        </Script>
+
+      </body >
+    </html >
   );
 }
