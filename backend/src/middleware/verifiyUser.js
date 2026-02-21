@@ -1,25 +1,24 @@
 const jwt = require("jsonwebtoken");
-const { User } = require("../model/model.js");
+const  User  = require("../model/user.model.js");
 
 const verifyJwt = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-   console.log("aurh header", authHeader)
-   
+    console.log("auth header", authHeader)
+
     const token =
       (authHeader?.startsWith("Bearer ")
         ? authHeader.split(" ")[1]
         : null) ||
-      req.cookies?.["admin-token"] ||
-      req.cookies?.["institution-token"];
+      req.cookies?.["login-token"]
 
-     console.log("token, ", token)
+    console.log("token, ", token)
 
     if (!token) {
       return res.status(401).json({ message: "Unauthorized request" });
     }
 
-    console.log('==>' , token)
+    console.log('==>', token)
 
 
     const decoded = jwt.verify(token, process.env.TOKEN_SECRET);
@@ -37,7 +36,7 @@ const verifyJwt = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("JWT error:", error.message);
+    console.error("JWT error:", error);
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
