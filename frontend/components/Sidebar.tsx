@@ -25,6 +25,26 @@ const Sidebar: React.FC = () => {
     } catch (e) {
       console.log("Error loading sidebar state", e);
     }
+
+    // Listen for sidebar toggle events from Navbar
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "sidebarCollapsed") {
+        setCollapsed(e.newValue === "1");
+      }
+    };
+
+    const handleToggleEvent = () => {
+      const v = window.localStorage.getItem("sidebarCollapsed");
+      setCollapsed(v === "1");
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("sidebarToggle", handleToggleEvent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("sidebarToggle", handleToggleEvent);
+    };
   }, []);
 
   const sections = [
@@ -68,13 +88,17 @@ const Sidebar: React.FC = () => {
       id="sidebar"
       style={{
         background: "linear-gradient(180deg, #023040 0%, #072033 50%, #0a1929 100%)",
-        minHeight: "100vh",
+        height: "100vh",
         width: collapsed ? "80px" : "280px",
-        transition: "width 0.3s ease",
+        transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         display: "flex",
         flexDirection: "column",
         boxShadow: "4px 0 12px rgba(0,0,0,0.15)",
-        position: "relative",
+        position: "fixed",
+        top: 0,
+        left: 0,
+        zIndex: 1000,
+        overflowX: "hidden",
       }}
       aria-label="Sidebar"
     >
@@ -152,7 +176,7 @@ const Sidebar: React.FC = () => {
       )}
 
       {/* Navigation Sections */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 12px" }}>
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "16px 12px" }}>
         {sections.map((sec, secIdx) => (
           <div key={sec.title} style={{ marginBottom: 24 }}>
             {!collapsed && (

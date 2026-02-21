@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import StoreProvider from "@/components/StoreProvider";
+import "primereact/resources/themes/bootstrap4-light-blue/theme.css";
+import "primereact/resources/primereact.min.css";
+import 'primeicons/primeicons.css';
+import { PrimeReactProvider } from "primereact/api";
 
 
 const geistSans = Geist({
@@ -56,7 +61,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <PrimeReactProvider>
+          <StoreProvider>{children}</StoreProvider>
+        </PrimeReactProvider>
 
         {/* Load AdminKit app JS after hydration so DOM is ready */}
         <Script src="/js/app.js" strategy="afterInteractive" />
