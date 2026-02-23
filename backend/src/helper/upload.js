@@ -12,7 +12,7 @@ const s3 = new S3Client({
 const uploadSingleImage = async (file) => {
   if (!file) return null;
 
-  const key = `institutions/${Date.now()}-${file.originalname}`;
+  const key = `petroll-pamp/${Date.now()}-${file.originalname}`;
 
   const upload = new Upload({
     client: s3,
