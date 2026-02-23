@@ -27,7 +27,7 @@ export default function Home() {
 
               <div style={{ marginTop: 28 }}>
                 <button
-                  onClick={() => router.push('/admin')}
+                  onClick={() => router.push('/login')}
                   className="btn btn-lg btn-primary"
                   style={{ padding: "12px 22px", fontWeight: 700 }}
                 >

@@ -31,7 +31,7 @@ const login = async (req, res) => {
                 isActive: user.isActive,
             },
             process.env.TOKEN_SECRET,
-            { expiresIn: "2d" }
+            { expiresIn: process.env.TOKEN_EXPIRATION }
         );
         console.log(token)
         res.cookie('login-token', token, {
