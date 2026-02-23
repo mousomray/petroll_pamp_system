@@ -5,10 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar } from "primereact/avatar";
 import { Badge } from "primereact/badge";
-import { Divider } from "primereact/divider";
-import Image from "next/image";
 
-// PrimeReact styles
+// ---------------- TYPES ----------------
+
 type SidebarProps = {
   role: "admin" | "manager" | "cashier";
 };
@@ -18,7 +17,11 @@ type MenuItem = {
   icon?: string;
   href?: string;
   badge?: string | null;
-  children?: { href: string; label: string }[];
+  children?: {
+    href: string;
+    label: string;
+    icon?: string;
+  }[];
 };
 
 type Section = {
@@ -26,12 +29,9 @@ type Section = {
   items: MenuItem[];
 };
 
+// ---------------- COMPONENT ----------------
 
-
-
-const Sidebar: React.FC<SidebarProps> = ({
-  role,
-}) => {
+const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
@@ -48,16 +48,15 @@ const Sidebar: React.FC<SidebarProps> = ({
     return pathname === href || pathname.startsWith(href + "/");
   };
 
+  // Load collapsed state
   useEffect(() => {
     try {
       const v = window.localStorage.getItem("sidebarCollapsed");
-      const isCollapsed = v === "1";
-      setCollapsed(isCollapsed);
+      setCollapsed(v === "1");
     } catch (e) {
       console.log("Error loading sidebar state", e);
     }
 
-    // Listen for sidebar toggle events from Navbar
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "sidebarCollapsed") {
         setCollapsed(e.newValue === "1");
@@ -78,28 +77,38 @@ const Sidebar: React.FC<SidebarProps> = ({
     };
   }, []);
 
+  // ---------------- ADMIN ----------------
+
   const adminSections: Section[] = [
     {
       title: "Main",
       items: [
-        { label: "Dashboard", icon: "pi-home", href: "/admin" },
-        { label: "Sales", icon: "pi-shopping-cart", href: "/admin/sales", badge: "12" },
-        { label: "Purchases", icon: "pi-box", href: "/admin/purchases" },
+        { label: "Dashboard", icon: "pi-home", href: "/dashboard" },
+        {
+          label: "Sales",
+          icon: "pi-shopping-cart",
+          href: "/dashboard/sales",
+          badge: "12",
+        },
+        { label: "Purchases", icon: "pi-box", href: "/dashboard/purchases" },
       ],
     },
-     {
-    title: "Management",
-    items: [
-      {
-        label: "User Management",
-        icon: "pi-users",
-        children: [
-          { href: "/admin/managers", label: "Managers" },
-          { href: "/admin/cashiers", label: "Cashiers" },
-        ],
-      },
-    ],
-  },
+    {
+      title: "Management",
+      items: [
+        {
+          label: "User Management",
+          icon: "pi-users",
+          children: [
+            {
+              href: "/dashboard/users",
+              label: "Users",
+              icon: "pi-user",
+            },
+          ],
+        },
+      ],
+    },
   ];
 
   // ---------------- MANAGER ----------------
@@ -113,7 +122,13 @@ const Sidebar: React.FC<SidebarProps> = ({
         {
           label: "Inventory",
           icon: "pi-database",
-          children: [{ href: "/manager/inventory/stock", label: "Stock Report" }],
+          children: [
+            {
+              href: "/manager/inventory/stock",
+              label: "Stock Report",
+              icon: "pi-chart-bar",
+            },
+          ],
         },
       ],
     },
@@ -127,7 +142,11 @@ const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { label: "Dashboard", icon: "pi-home", href: "/cashier" },
         { label: "New Sale", icon: "pi-shopping-cart", href: "/cashier/sales" },
-        { label: "Meter Entry", icon: "pi-sliders-h", href: "/cashier/meter-reading" },
+        {
+          label: "Meter Entry",
+          icon: "pi-sliders-h",
+          href: "/cashier/meter-reading",
+        },
       ],
     },
   ];
@@ -137,10 +156,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   if (role === "manager") sections = managerSections;
   if (role === "cashier") sections = cashierSections;
 
-  
+  // ---------------- UI ----------------
 
   return (
-     <nav
+    <nav
       style={{
         width: collapsed ? "80px" : "280px",
         background: "#0f172a",
@@ -149,16 +168,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         position: "fixed",
         transition: "width 0.3s",
         paddingTop: 20,
+        overflowY: "auto",
       }}
     >
       {/* HEADER */}
       <div style={{ padding: "0 20px", marginBottom: 20 }}>
         {!collapsed && <h2 style={{ margin: 0 }}>Petrol Pump ERP</h2>}
-      </div>
-
-      {/* TOGGLE BUTTON */}
-      <div style={{ padding: "0 20px", marginBottom: 20 }}>
-        
       </div>
 
       {/* USER */}
@@ -195,6 +210,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               return (
                 <div key={item.label}>
+                  {/* DIRECT LINK */}
                   {item.href && !hasChildren ? (
                     <Link
                       href={item.href}
@@ -206,11 +222,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                         borderRadius: 6,
                         textDecoration: "none",
                         color: active ? "#38bdf8" : "#cbd5e1",
-                        background: active ? "rgba(56,189,248,0.1)" : "transparent",
+                        background: active
+                          ? "rgba(56,189,248,0.1)"
+                          : "transparent",
                         marginBottom: 4,
                       }}
                     >
-                      <i className={`pi ${item.icon}`} />
+                      {item.icon && <i className={`pi ${item.icon}`} />}
                       {!collapsed && (
                         <>
                           <span style={{ flex: 1 }}>{item.label}</span>
@@ -219,6 +237,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       )}
                     </Link>
                   ) : (
+                    /* PARENT MENU */
                     <div
                       onClick={() => hasChildren && toggleMenu(item.label)}
                       style={{
@@ -232,20 +251,25 @@ const Sidebar: React.FC<SidebarProps> = ({
                         marginBottom: 4,
                       }}
                     >
-                      <i className={`pi ${item.icon}`} />
+                      {item.icon && <i className={`pi ${item.icon}`} />}
                       {!collapsed && (
                         <>
                           <span style={{ flex: 1 }}>{item.label}</span>
-                          <i
-                            className={`pi ${
-                              isOpen ? "pi-chevron-down" : "pi-chevron-right"
-                            }`}
-                          />
+                          {hasChildren && (
+                            <i
+                              className={`pi ${
+                                isOpen
+                                  ? "pi-chevron-down"
+                                  : "pi-chevron-right"
+                              }`}
+                            />
+                          )}
                         </>
                       )}
                     </div>
                   )}
 
+                  {/* CHILDREN */}
                   {hasChildren && isOpen && !collapsed && (
                     <div style={{ marginLeft: 30 }}>
                       {item.children!.map((child) => {
@@ -255,7 +279,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                             key={child.href}
                             href={child.href}
                             style={{
-                              display: "block",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
                               padding: "8px",
                               borderRadius: 6,
                               fontSize: 13,
@@ -267,7 +293,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                               marginBottom: 4,
                             }}
                           >
-                            {child.label}
+                            {child.icon && (
+                              <i className={`pi ${child.icon}`} />
+                            )}
+                            <span>{child.label}</span>
                           </Link>
                         );
                       })}
