@@ -236,7 +236,7 @@ export default function LoginPage() {
                   label={loading ? "Signing in..." : "Sign in"}
                   icon="pi pi-sign-in"
                   loading={loading}
-                  className="p-button-primary"
+                  className="p-button-primary "
                   style={{ width: "100%", fontWeight: 700, padding: "10px 14px" }}
                 />
               </form>
