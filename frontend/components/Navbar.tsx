@@ -7,20 +7,19 @@ import { Button } from "primereact/button";
 import { Menu } from "primereact/menu";
 import type { MenuItem } from "primereact/menuitem";
 
-// PrimeReact styles
-import "primereact/resources/themes/saga-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
+
 
 interface NavbarProps {
+    role: "admin" | "manager" | "cashier";
     user: {
         name: string;
         image: string;
     };
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
     const [collapsed, setCollapsed] = useState<boolean>(false);
+    const menuRef = React.useRef<Menu>(null);
 
     useEffect(() => {
         try {
@@ -43,6 +42,60 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
         };
     }, []);
 
+    const basePath =
+        role === "admin"
+            ? "/admin"
+            : role === "manager"
+                ? "/manager"
+                : "/cashier";
+
+    // 🔹 Role label
+    const roleLabel =
+        role === "admin"
+            ? "Administrator"
+            : role === "manager"
+                ? "Manager"
+                : "Cashier";
+
+
+    const userMenuItems: MenuItem[] = [
+        {
+            label: "Profile",
+            icon: "pi pi-user",
+            command: () => {
+                window.location.href = `${basePath}/profile`;
+            },
+        },
+        { separator: true },
+        {
+            label: "Update Password",
+            icon: "pi pi-lock",
+            command: () => {
+                window.location.href = `${basePath}/updatepassword`;
+            },
+        },
+        { separator: true },
+        {
+            label: "Log out",
+            icon: "pi pi-sign-out",
+            command: () => {
+                window.location.href = `${basePath}/logout`;
+            },
+        },
+    ];
+
+    // 🔹 Role-based title
+    const pageTitle =
+        role === "admin"
+            ? "Admin Dashboard"
+            : role === "manager"
+                ? "Manager Dashboard"
+                : "Cashier Panel";
+
+
+
+
+
     const toggleSidebar = () => {
         try {
             const next = !collapsed;
@@ -55,27 +108,7 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
         }
     };
 
-    const menuRef = React.useRef<Menu>(null);
 
-    const userMenuItems: MenuItem[] = [
-        {
-            label: 'Profile',
-            icon: 'pi pi-user',
-            command: () => { window.location.href = '/admin/profile'; }
-        },
-        { separator: true },
-        {
-            label: 'Update Password',
-            icon: 'pi pi-lock',
-            command: () => { window.location.href = '/admin/updatepassword'; }
-        },
-        { separator: true },
-        {
-            label: 'Log out',
-            icon: 'pi pi-sign-out',
-            command: () => { window.location.href = '/admin/adminlogout'; }
-        }
-    ];
 
     return (
         <nav
@@ -91,31 +124,24 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
                 top: 0,
                 left: collapsed ? "80px" : "280px",
                 right: 0,
-                zIndex: 999,
-                transition: "left 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 height: "72px",
+                transition: "left 0.3s",
+                zIndex: 999,
             }}
         >
-            {/* Left Section - Toggle Button */}
+            {/* LEFT SECTION */}
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 <Button
-                    icon={collapsed ? "pi pi-bars" : "pi pi-times"}
+                    icon="pi pi-bars"
                     rounded
                     text
                     severity="secondary"
-                    aria-label="Toggle sidebar"
                     onClick={toggleSidebar}
-                    style={{
-                        width: 44,
-                        height: 44,
-                        color: "#023040",
-                    }}
-                    tooltip={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                    tooltipOptions={{ position: "bottom" }}
                 />
+
                 <div>
-                    <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#023040" }}>
-                        Dashboard
+                    <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
+                        {pageTitle}
                     </h1>
                     <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
                         Welcome back, manage your operations
@@ -123,7 +149,7 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
                 </div>
             </div>
 
-            {/* Right Section - Actions & User */}
+            {/* RIGHT SECTION */}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 {/* Notifications */}
                 <Button
@@ -131,8 +157,6 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
                     rounded
                     text
                     severity="secondary"
-                    aria-label="Notifications"
-                    style={{ position: "relative", width: 44, height: 44 }}
                     badge="3"
                     badgeClassName="p-badge-danger"
                 />
@@ -143,13 +167,10 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
                     rounded
                     text
                     severity="secondary"
-                    aria-label="Messages"
-                    style={{ width: 44, height: 44 }}
                     badge="5"
                     badgeClassName="p-badge-info"
                 />
 
-                {/* Divider */}
                 <div
                     style={{
                         width: 1,
@@ -159,9 +180,9 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
                     }}
                 />
 
-                {/* User Menu */}
+                {/* USER */}
                 <div>
-                    <Menu model={userMenuItems} popup ref={menuRef} />
+                    <Menu className="" model={userMenuItems} popup ref={menuRef} />
                     <div
                         onClick={(e) => menuRef.current?.toggle(e)}
                         style={{
@@ -171,35 +192,23 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
                             padding: "6px 12px",
                             borderRadius: 12,
                             cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            border: "1px solid transparent",
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "rgba(2,48,64,0.04)";
-                            e.currentTarget.style.borderColor = "rgba(2,48,64,0.1)";
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "transparent";
-                            e.currentTarget.style.borderColor = "transparent";
                         }}
                     >
-                        <Avatar
-                            image={user.image}
-                            shape="circle"
-                            size="normal"
-                            style={{ width: 40, height: 40 }}
-                        />
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                            <span style={{ fontWeight: 600, fontSize: 14, color: "#023040" }}>
-                                {user.name}
-                            </span>
-                            <span style={{ fontSize: 12, color: "#6b7280" }}>Administrator</span>
+                        <Avatar image={user.image} shape="circle" />
+
+                        <div>
+                            <div style={{ fontWeight: 600 }}>{user.name}</div>
+                            <div style={{ fontSize: 12, color: "#6b7280" }}>
+                                {roleLabel}
+                            </div>
                         </div>
-                        <i className="pi pi-chevron-down" style={{ color: "#6b7280", fontSize: 12 }} />
+
+                        <i className="pi pi-chevron-down" />
                     </div>
                 </div>
             </div>
         </nav>
+
     );
 };
 

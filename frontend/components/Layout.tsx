@@ -41,13 +41,13 @@ const Layout: React.FC<LayoutProps> = ({
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
       {/* Sidebar - Fixed */}
-      <Sidebar />
+      <Sidebar role="admin" />
 
       {/* Main Content Area */}
       <div
         style={{
           flex: 1,
-          marginLeft: collapsed ? "80px" : "280px",
+          marginLeft: collapsed ? "80px" : "300px",
           transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           display: "flex",
           flexDirection: "column",
@@ -55,7 +55,7 @@ const Layout: React.FC<LayoutProps> = ({
         }}
       >
         {/* Navbar - Fixed */}
-        <Navbar user={user} />
+        <Navbar role="manager" user={user} />
 
         {/* Page Content */}
         <main
