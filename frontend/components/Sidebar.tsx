@@ -96,6 +96,33 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
         },
       ],
     },
+    {
+    title: "Inventory",
+    items: [
+      {
+        label: "Products",
+        icon: "pi-box",
+        children: [
+          {
+            href: "/dashboard/products",
+            label: "All Products",
+            icon: "pi-list",
+          },
+        ],
+      },
+      {
+        label: "Stock",
+        icon: "pi-database",
+        children: [
+          {
+            href: "/dashboard/opening-Stock",
+            label: "Opening Stock",
+            icon: "pi-chart-bar",
+          },
+        ],
+      },
+    ],
+  },
   ];
 
   // ---------------- MANAGER ----------------
