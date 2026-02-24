@@ -22,6 +22,9 @@ const createProductSchema = z.object({
         .number()
         .nonnegative("Minimum stock alert cannot be negative")
         .optional(),
+   currentStock: z .number()
+        .nonnegative("Current stock alert cannot be negative")
+        .optional(),
 });
 
 //  Update Product Schema

@@ -27,7 +27,9 @@ const createProduct = async (req, res) => {
             name: parsedData.name,
             type: parsedData.type,
             costPrice: parsedData.costPrice,
-            sellingPrice
+            sellingPrice: parsedData.sellingPrice,
+            currentStock: parsedData.currentStock,
+            minimumStockAlert: parsedData.minimumStockAlert,
         });
 
         return res.status(201).json({

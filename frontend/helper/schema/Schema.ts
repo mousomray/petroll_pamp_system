@@ -75,3 +75,71 @@ export const updateUserSchema = zod.object({
     .boolean()
     .optional()
 });
+
+export const createProductSchema = zod.object({
+  name: zod
+    .string()
+    .min(1, "Product name is required")
+    .trim(),
+
+  type: zod
+    .enum(["FUEL", "OIL", "TYRE", "ACCESSORY"], {
+      message: "Invalid product type"
+    }),
+
+  costPrice: zod
+    .number()
+    .nonnegative("Cost price must be >= 0"),
+
+  sellingPrice: zod
+    .number()
+    .nonnegative("Selling price must be >= 0"),
+
+  minimumStockAlert: zod
+    .number()
+    .nonnegative("Minimum stock alert cannot be negative")
+    .optional(),
+
+  currentStock: zod
+    .number()
+    .nonnegative("Current stock cannot be negative")
+    .optional(),
+});
+
+export const updateProductSchema = zod.object({
+  name: zod
+    .string()
+    .min(1, "Product name cannot be empty")
+    .trim()
+    .optional(),
+
+  type: zod
+    .enum(["FUEL", "OIL", "TYRE", "ACCESSORY"], {
+      message: "Invalid product type"
+    })
+    .optional(),
+
+  costPrice: zod
+    .number()
+    .nonnegative("Cost price must be >= 0")
+    .optional(),
+
+  sellingPrice: zod
+    .number()
+    .nonnegative("Selling price must be >= 0")
+    .optional(),
+
+  minimumStockAlert: zod
+    .number()
+    .nonnegative("Minimum stock alert cannot be negative")
+    .optional(),
+
+  currentStock: zod
+    .number()
+    .nonnegative("Stock cannot be negative")
+    .optional(),
+
+  isActive: zod
+    .boolean()
+    .optional(),
+});
