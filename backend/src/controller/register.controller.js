@@ -45,6 +45,40 @@ const registerAdmin = async (req, res) => {
   }
 };
 
+const allAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || process.env.DEFAULT_PAGE_SIZE;
+    const search = req.query.search || "";
+
+    const filter = {
+      role: { $in: "ADMIN" },
+      name: { $regex: search, $options: "i" },
+    };
+    const totalUsers = await UserModel.countDocuments(filter);
+    const totalPages = Math.ceil(totalUsers / limit);
+    const skip = (page - 1) * limit;
+
+    const users = await UserModel.find(filter)
+      .select("-password")
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      page,
+      totalPages,
+      totalUsers,
+      users,
+    });
+  } catch (error) {
+    console.error("Error fetching admin:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
 const createUser = async (req, res) => {
   try {
     const parsedData = createUserSchema.parse(req.body);
@@ -91,8 +125,51 @@ const createUser = async (req, res) => {
   }
 };
 
+const createUserForAdmin = async (req, res) => {
+  try {
+    const parsedData = createUserSchema.parse(req.body);
+    const existingUser = await UserModel.findOne({ email: parsedData.email });
+    if (existingUser) {
+      return res.status(400).json({
+        message: "User already exists with this email",
+      });
+    }
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(parsedData.password, salt);
+    const user = new UserModel({ ...parsedData, password: hashedPassword, createdBy: req.user.id });
+    await user.save();
+    try {
+      await sendPasswordEmail(parsedData.email, parsedData.password);
+    } catch (emailError) {
+      console.error("Failed to send password email:", emailError);
+    }
+
+    return res.status(201).json({
+      message: `Hii ${parsedData.name}, you are registered as ${parsedData.role}`,
+      user: { ...user.toObject(), password: undefined },
+    });
+  } catch (error) {
+    if (error.name === "ZodError") {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: error.errors,
+      });
+    }
+
+    if (error.code === 11000 && error.keyPattern?.email) {
+      return res.status(409).json({
+        message: "Email already in use",
+      });
+    }
+
+    console.error("User creation error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const allUsers = async (req, res) => {
   try {
+    const userId = req.user.id;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || process.env.DEFAULT_PAGE_SIZE;
     const search = req.query.search || "";
@@ -100,6 +177,7 @@ const allUsers = async (req, res) => {
     const filter = {
       role: { $ne: "ADMIN" },
       name: { $regex: search, $options: "i" },
+      createdBy: userId
     };
     const totalUsers = await UserModel.countDocuments(filter);
     const totalPages = Math.ceil(totalUsers / limit);
@@ -197,5 +275,5 @@ const updateUser = async (req, res) => {
 };
 
 
-module.exports = { registerAdmin, createUser, allUsers, singleUser, updateUser };
+module.exports = { registerAdmin, createUser, allAdmin, allUsers, singleUser, updateUser, createUserForAdmin };
 

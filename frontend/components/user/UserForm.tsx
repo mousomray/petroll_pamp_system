@@ -101,7 +101,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
         try {
             const url = isEditMode
                 ? `/api/register/update-user/${userId}`
-                : `/api/register/create-user`;
+                : `/api/register/create-user-for-admin`;
 
             const method = isEditMode ? 'put' : 'post';
 
