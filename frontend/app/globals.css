@@ -5,25 +5,7 @@
   --foreground: #171717;
 }
 
-@theme {
-  /* 1. Add your custom colors here using CSS variable syntax */
-  /* Note: I converted camelCase to kebab-case for standard Tailwind class usage */
-  
-  --color-primary: #2563EB;        /* Main Blue */
-  --color-primary-hover: #1E40AF;  /* Dark Blue */
-  --color-secondary: #0EA5E9;      /* Sky Blue */
 
-  --color-background: #FFFFFF;     /* White base */
-  --color-surface: #F8FAFC;        /* Cards / sections */
-
-  --color-text-primary: #0F172A;   /* Dark text */
-  --color-text-secondary: #475569; /* Muted text */
-  
-  --color-border: #E5E7EB;         /* Light gray borders */
-
-  /* 2. Your existing screen extension */
-  --breakpoint-widescreen: (min-aspect-ratio: 3/2);
-}
 
 
 @media (prefers-color-scheme: dark) {
