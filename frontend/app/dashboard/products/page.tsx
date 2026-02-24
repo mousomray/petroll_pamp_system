@@ -17,12 +17,12 @@ import { formatDate } from "@/helper/DateTime";
 import ProductFrom from "@/components/product/ProductFrom";
 const EmptyState = () => (
   <div className="flex flex-col items-center justify-center h-full text-center">
-    <div className="text-6xl mb-4">👤</div>
+    <div className="text-6xl mb-4">📦</div>
     <h2 className="text-xl font-semibold text-gray-700">
-      No User Available
+      No Products Available
     </h2>
     <p className="text-gray-500 mt-2 max-w-md">
-      You haven’t added any users yet. Once you create a user, it will appear
+      You haven't added any products yet. Once you create a product, it will appear
       here for management.
     </p>
   </div>
@@ -67,7 +67,7 @@ function Page() {
   const userDataGet = async () => {
     try {
       setLoading(true);
-      const res = await axiosInstance.get("/api/register/all-users", {
+      const res = await axiosInstance.get("/api/product/all-products", {
         params: {
           page: pagination.page,
           limit: pagination.rows,
@@ -75,10 +75,10 @@ function Page() {
         },
       });
 
-      setProductData(res.data.users || []);
+      setProductData(res.data.products || []);
       setPagination((prev) => ({
         ...prev,
-        total: res.data.totalUsers || 0,
+        total: res.data.totalProducts || 0,
       }));
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
@@ -125,7 +125,7 @@ function Page() {
       accept: async () => {
         try {
           const res = await axiosInstance.delete(
-            `/register/delete-user/${rowData._id}`
+            `api/product/delete-product/${rowData._id}`
           );
           toast.success(res.data.message || "User deleted successfully");
           await userDataGet();
@@ -237,8 +237,8 @@ function Page() {
   const header = (
     <div className="flex justify-between items-center bg-primary p-3 rounded-lg">
       <div>
-        <h2 className="text-lg font-semibold text-white">Users</h2>
-        <p className="text-sm text-black">Manage users</p>
+        <h2 className="text-lg font-semibold text-white">Products</h2>
+        <p className="text-sm text-black">Manage products</p>
       </div>
 
       <div className="flex gap-2 items-center">
@@ -282,14 +282,15 @@ function Page() {
             }))
           }
           responsiveLayout="scroll"
-          emptyMessage="No users found"
+          emptyMessage={EmptyState}
         >
           <Column header="Avatar" body={imageTemplate} />
           <Column field="name" header="Name" sortable />
-          <Column field="email" header="Email" sortable />
-          <Column field="phone" header="Phone" />
-          <Column header="Role" body={roleTemplate} />
-          <Column field="shiftType" header="Shift" />
+          <Column field="type" header="Type" />
+          <Column field="unit" header="Unit" />
+          <Column field="costPrice" header="Cost Price" body={(row: any) => `$${row.costPrice?.toFixed(2) || '0.00'}`} />
+          <Column field="sellingPrice" header="Selling Price" body={(row: any) => `$${row.sellingPrice?.toFixed(2) || '0.00'}`} />
+          <Column field="minimumStockAlert" header="Min Stock Alert" />
           <Column header="Status" body={statusTemplate} />
           <Column header="Created" body={(row: any) => formatDate(row.createdAt)} />
           <Column header="Actions" body={actionTemplate} />

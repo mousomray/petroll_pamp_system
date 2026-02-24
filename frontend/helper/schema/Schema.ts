@@ -87,6 +87,11 @@ export const createProductSchema = zod.object({
       message: "Invalid product type"
     }),
 
+    unit: zod
+    .enum(["LITRE", "PIECE", "KG", "BOX"], {
+      message: "Invalid unit"
+    }),
+
   costPrice: zod
     .number()
     .nonnegative("Cost price must be >= 0"),
@@ -99,11 +104,6 @@ export const createProductSchema = zod.object({
     .number()
     .nonnegative("Minimum stock alert cannot be negative")
     .optional(),
-
-  currentStock: zod
-    .number()
-    .nonnegative("Current stock cannot be negative")
-    .optional(),
 });
 
 export const updateProductSchema = zod.object({
@@ -112,6 +112,11 @@ export const updateProductSchema = zod.object({
     .min(1, "Product name cannot be empty")
     .trim()
     .optional(),
+
+    unit: zod
+    .enum(["LITRE", "PIECE", "KG", "BOX"], {
+      message: "Invalid unit"
+    }),
 
   type: zod
     .enum(["FUEL", "OIL", "TYRE", "ACCESSORY"], {
@@ -132,11 +137,6 @@ export const updateProductSchema = zod.object({
   minimumStockAlert: zod
     .number()
     .nonnegative("Minimum stock alert cannot be negative")
-    .optional(),
-
-  currentStock: zod
-    .number()
-    .nonnegative("Stock cannot be negative")
     .optional(),
 
   isActive: zod

@@ -29,6 +29,13 @@ const productTypeOptions = [
     { label: "Accessory", value: "ACCESSORY" },
 ];
 
+const unitOptions = [
+    { label: "Litre", value: "LITRE" },
+    { label: "Piece", value: "PIECE" },
+    { label: "KG", value: "KG" },
+    { label: "Box", value: "BOX" },
+];
+
 function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -47,19 +54,19 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
             ? {
                 name: "",
                 type: "FUEL",
+                unit: "LITRE",
                 costPrice: 0,
                 sellingPrice: 0,
                 minimumStockAlert: 0,
-                currentStock: 0,
                 isActive: true,
             }
             : {
                 name: "",
                 type: "FUEL",
+                unit: "LITRE",
                 costPrice: 0,
                 sellingPrice: 0,
                 minimumStockAlert: 0,
-                currentStock: 0,
             },
     });
 
@@ -73,16 +80,16 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
     const fetchProductData = async () => {
         try {
             setLoading(true);
-            const res = await axiosInstance.get(`/api/products/single-product/${productId}`);
+            const res = await axiosInstance.get(`/api/product/single-product/${productId}`);
             const product = res.data.product;
 
             // Populate form with product data
             setValue("name", product.name);
             setValue("type", product.type);
+            setValue("unit", product.unit);
             setValue("costPrice", product.costPrice);
             setValue("sellingPrice", product.sellingPrice);
             setValue("minimumStockAlert", product.minimumStockAlert);
-            setValue("currentStock", product.currentStock);
             if (isEditMode) {
                 setValue("isActive", product.isActive);
             }
@@ -98,8 +105,8 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
         setIsSubmitting(true);
         try {
             const url = isEditMode
-                ? `/api/products/update-product/${productId}`
-                : `/api/products/create-product`;
+                ? `/api/product/update-product/${productId}`
+                : `/api/product/create-product`;
 
             const method = isEditMode ? 'put' : 'post';
 
@@ -181,6 +188,33 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                                 <small className="text-red-500 flex items-center gap-1">
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.type.message}
+                                </small>
+                            )}
+                        </div>
+
+                        {/* Unit */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-gray-700">
+                                Unit <span className="text-red-500">*</span>
+                            </label>
+                            <Controller
+                                name="unit"
+                                control={control}
+                                render={({ field }) => (
+                                    <Dropdown
+                                        {...field}
+                                        options={unitOptions}
+                                        optionLabel="label"
+                                        optionValue="value"
+                                        placeholder="Select unit"
+                                        className="w-full"
+                                    />
+                                )}
+                            />
+                            {errors.unit && (
+                                <small className="text-red-500 flex items-center gap-1">
+                                    <i className="pi pi-exclamation-circle"></i>
+                                    {errors.unit.message}
                                 </small>
                             )}
                         </div>
@@ -286,41 +320,6 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                                 <small className="text-red-500 flex items-center gap-1">
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.minimumStockAlert.message}
-                                </small>
-                            )}
-                        </div>
-
-                        {/* Current Stock */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-700">
-                                Current Stock
-                            </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-inbox text-blue-600"></i>
-                                </span>
-                                <Controller
-                                    name="currentStock"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <InputNumber
-                                            value={field.value}
-                                            onValueChange={(e) => field.onChange(e.value)}
-                                            placeholder="Enter current stock"
-                                            min={0}
-                                            className="w-full"
-                                            useGrouping={false}
-                                            mode="decimal"
-                                            minFractionDigits={0}
-                                            maxFractionDigits={2}
-                                        />
-                                    )}
-                                />
-                            </div>
-                            {errors.currentStock && (
-                                <small className="text-red-500 flex items-center gap-1">
-                                    <i className="pi pi-exclamation-circle"></i>
-                                    {errors.currentStock.message}
                                 </small>
                             )}
                         </div>

@@ -28,9 +28,11 @@ app.set("views", path.join(__dirname, "views"));
 
 const registerRoutes = require("./src/routes/register.routes.js")
 const loginRoutes = require("./src/routes/login.routes.js")
+const productRoutes = require("./src/routes/product.routes.js")
 
 app.use("/api/register", registerRoutes)
 app.use("/api/login", loginRoutes)
+app.use("/api/product",productRoutes)
 
 const port = process.env.PORT
 

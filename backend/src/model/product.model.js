@@ -10,6 +10,11 @@ const productSchema = new mongoose.Schema(
         image: {
             type: String
         },
+         unit: {
+            type: String,
+            required: [true, "Unit is required"],
+            enum: ["LITRE", "PIECE", "KG", "BOX"],
+        },
         type: {
             type: String,
             required: [true, "Product type is required"],
@@ -30,11 +35,6 @@ const productSchema = new mongoose.Schema(
                 },
                 message: "Selling price must be greater than or equal to cost price",
             },
-        },
-        currentStock: {
-            type: Number,
-            default: 0,
-            min: [0, "Stock cannot be negative"],
         },
         minimumStockAlert: {
             type: Number,

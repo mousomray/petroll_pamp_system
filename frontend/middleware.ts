@@ -9,6 +9,7 @@ export async function middleware(request: NextRequest) {
 
   const secret = new TextEncoder().encode(process.env.TOKEN_SECRET);
 
+  
   if (pathname === "/login") {
     if (!loginToken) {
       return NextResponse.next();
@@ -22,7 +23,24 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+
   if (pathname === "/profile") {
+    if (!loginToken) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    try {
+      await jwtVerify(loginToken, secret);
+      return NextResponse.next();
+    } catch {
+      const res = NextResponse.redirect(new URL("/login", request.url));
+      res.cookies.set("login-token", "", { maxAge: 0, path: "/" });
+      return res;
+    }
+  }
+
+
+  if (pathname.startsWith("/dashboard")) {
     if (!loginToken) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -41,5 +59,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/profile", "/login"], 
+  matcher: ["/profile", "/login", "/dashboard/:path*"], 
 };
