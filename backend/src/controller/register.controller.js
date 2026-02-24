@@ -11,12 +11,6 @@ const sendPasswordEmail = require("../helper/mail.service.js")
 const registerAdmin = async (req, res) => {
   try {
     const parsedData = createUserSchema.parse(req.body);
-    const existingAdmin = await UserModel.findOne({ role: "ADMIN" });
-    if (existingAdmin) {
-      return res.status(400).json({
-        message: "Admin already exists. Only one admin is allowed.",
-      });
-    }
     const existingEmail = await UserModel.findOne({ email: parsedData.email });
     if (existingEmail) {
       return res.status(409).json({

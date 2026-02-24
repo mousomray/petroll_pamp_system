@@ -9,7 +9,7 @@ import { Badge } from "primereact/badge";
 // ---------------- TYPES ----------------
 
 type SidebarProps = {
-  role: "admin" | "manager" | "cashier";
+  role: "ADMIN" | "MANAGER" | "CASHIER";
 };
 
 type MenuItem = {
@@ -81,19 +81,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   const adminSections: Section[] = [
     {
-      title: "Main",
-      items: [
-        { label: "Dashboard", icon: "pi-home", href: "/dashboard" },
-        {
-          label: "Sales",
-          icon: "pi-shopping-cart",
-          href: "/dashboard/sales",
-          badge: "12",
-        },
-        { label: "Purchases", icon: "pi-box", href: "/dashboard/purchases" },
-      ],
-    },
-    {
       title: "Management",
       items: [
         {
@@ -152,9 +139,9 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   ];
 
   let sections: Section[] = [];
-  if (role === "admin") sections = adminSections;
-  if (role === "manager") sections = managerSections;
-  if (role === "cashier") sections = cashierSections;
+  if (role === "ADMIN") sections = adminSections;
+  if (role === "MANAGER") sections = managerSections;
+  if (role === "CASHIER") sections = cashierSections;
 
   // ---------------- UI ----------------
 

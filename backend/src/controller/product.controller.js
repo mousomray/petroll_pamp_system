@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const ProductModel = require("../model/product.model.js")
+const UserModel = require("../model/user.model.js")
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { createProductSchema, updateProductSchema } = require("../schema/product.schema.js");
@@ -12,6 +13,10 @@ const createProduct = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
+        const user = await UserModel.findById(userId)
+        if(user.role !== "ADMIN"){
+            return res.status(401).json({ message: "Unauthorized user role" });
+        }
         let photoUrl = null;
 
         if (req.files?.image?.length > 0) {
@@ -20,6 +25,9 @@ const createProduct = async (req, res) => {
 
         const product = await ProductModel.create({
             name: parsedData.name,
+            type: parsedData.type,
+            costPrice: parsedData.costPrice,
+            sellingPrice
         });
 
         return res.status(201).json({

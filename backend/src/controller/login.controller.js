@@ -11,7 +11,7 @@ const sendPasswordEmail = require("../helper/mail.service.js")
 const login = async (req, res) => {
     try {
         const parsedData = loginSchema.parse(req.body);
-        const user = await UserModel.findOne({ email: parsedData.email, role: "ADMIN" });
+        const user = await UserModel.findOne({ email: parsedData.email });
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }

@@ -10,7 +10,7 @@ import type { MenuItem } from "primereact/menuitem";
 
 
 interface NavbarProps {
-    role: "admin" | "manager" | "cashier";
+    role:  "ADMIN" | "MANAGER" | "CASHIER";
     user: {
         name: string;
         image: string;
@@ -43,17 +43,17 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
     }, []);
 
     const basePath =
-        role === "admin"
+        role === "ADMIN"
             ? "/admin"
-            : role === "manager"
+            : role === "MANAGER"
                 ? "/manager"
                 : "/cashier";
 
     // 🔹 Role label
     const roleLabel =
-        role === "admin"
+        role === "ADMIN"
             ? "Administrator"
-            : role === "manager"
+            : role === "MANAGER"
                 ? "Manager"
                 : "Cashier";
 
@@ -86,9 +86,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
 
     // 🔹 Role-based title
     const pageTitle =
-        role === "admin"
+        role === "ADMIN"
             ? "Admin Dashboard"
-            : role === "manager"
+            : role === "MANAGER"
                 ? "Manager Dashboard"
                 : "Cashier Panel";
 

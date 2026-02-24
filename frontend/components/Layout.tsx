@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
-
+import { Role, useProfileStore } from "@/lib/store/profileStore"
 interface LayoutProps {
   children: React.ReactNode;
   user?: {
@@ -18,6 +18,14 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
 
+
+  const { profile, loading, error, fetchProfile } = useProfileStore();
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  console.log("Profile Data:", profile, "Loading:", loading, "Error:", error);
   useEffect(() => {
     try {
       const v = window.localStorage.getItem("sidebarCollapsed");
@@ -37,12 +45,18 @@ const Layout: React.FC<LayoutProps> = ({
       window.removeEventListener("sidebarToggle", handleToggleEvent);
     };
   }, []);
+   
 
+  const role: Role = profile?.role ?? "ADMIN";
+  console.log("==>", role)
+
+  console.log("++", profile?.role)
+    
+ 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
       {/* Sidebar - Fixed */}
-      <Sidebar role="admin" />
-
+       <Sidebar role={role}/>
       {/* Main Content Area */}
       <div
         style={{
@@ -55,7 +69,7 @@ const Layout: React.FC<LayoutProps> = ({
         }}
       >
         {/* Navbar - Fixed */}
-        <Navbar role="manager" user={user} />
+        <Navbar role={role} user={user} />
 
         {/* Page Content */}
         <main
