@@ -59,7 +59,7 @@ export default function LoginPage() {
       dispatch(tokenSlice.actions.saveToken(token));
       localStorage.setItem("login-token", res.data.token);
       console.log("Response...", res)
-      router.push("/profile");
+      router.push("/dashboard");
     } catch (error: any) {
       console.log("Login error:", error);
       const errorMessage = error.response?.data?.message || "Login failed. Please try again.";
