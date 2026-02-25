@@ -14,7 +14,6 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({
   children,
-  user = { name: "Admin User", image: "/img/avatars/avatar-2.jpg" }
 }) => {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -48,15 +47,14 @@ const Layout: React.FC<LayoutProps> = ({
    
 
   const role: Role = profile?.role ?? "ADMIN";
-  console.log("==>", role)
-
-  console.log("++", profile?.role)
-    
+  const name = profile?.name ?? "ADMIN"
+  const image = "/img/avatars/avatar-2.jpg"
+  const email = profile?.email ?? "admin@gmail.com"
  
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
       {/* Sidebar - Fixed */}
-       <Sidebar role={role}/>
+       <Sidebar user={{name: name, email: email, image: image}} role={role}/>
       {/* Main Content Area */}
       <div
         style={{
@@ -69,7 +67,7 @@ const Layout: React.FC<LayoutProps> = ({
         }}
       >
         {/* Navbar - Fixed */}
-        <Navbar role={role} user={user} />
+        <Navbar role={role} user={{name: name , image: image}} />
 
         {/* Page Content */}
         <main
