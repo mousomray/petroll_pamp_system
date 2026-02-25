@@ -186,7 +186,25 @@ const getSingleProduct = async (req, res) => {
     }
 };
 
-
+const dropDownProducts = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const products = await ProductModel.find({
+            isActive: true,
+            userId: userId,
+            unit: "LITRE"
+        })
+        return res.json({
+            success: true,
+            data: products
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        })
+    }
+}
 
 
 
@@ -196,4 +214,5 @@ module.exports = {
     getSingleProduct,
     updateProduct,
     deleteProduct,
+    dropDownProducts
 };
