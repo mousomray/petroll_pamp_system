@@ -305,7 +305,7 @@ function Page() {
             }))
           }
           responsiveLayout="scroll"
-          emptyMessage="No users found"
+          emptyMessage={EmptyState}
         >
           <Column header="Avatar" body={imageTemplate} />
           <Column field="name" header="Name" sortable />
