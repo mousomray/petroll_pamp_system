@@ -35,4 +35,6 @@ financialYearSchema.index(
     { unique: true }
 );
 
-module.exports = mongoose.model("FinancialYear", financialYearSchema);
+const financialYearModle = mongoose.model("FinancialYear", financialYearSchema)
+
+module.exports = financialYearModle;

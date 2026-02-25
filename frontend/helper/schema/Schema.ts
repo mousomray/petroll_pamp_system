@@ -143,3 +143,41 @@ export const updateProductSchema = zod.object({
     .boolean()
     .optional(),
 });
+
+export const createFinancialYearSchema = zod.object({
+  name: zod
+    .string()
+    .min(1, "Financial year name is required")
+    .regex(/^\d{4}-\d{4}$/, "Format should be YYYY-YYYY (e.g., 2024-2025)"),
+
+  startDate: zod
+    .string()
+    .datetime("Invalid date format"),
+
+  endDate: zod
+    .string()
+    .datetime("Invalid date format"),
+    isActive: zod.boolean().optional()
+});
+
+export const updateFinancialYearSchema = zod.object({
+  name: zod
+    .string()
+    .min(1, "Financial year name is required")
+    .regex(/^\d{4}-\d{4}$/, "Format should be YYYY-YYYY (e.g., 2024-2025)")
+    .optional(),
+
+  startDate: zod
+    .string()
+    .datetime("Invalid date format")
+    .optional(),
+
+  endDate: zod
+    .string()
+    .datetime("Invalid date format")
+    .optional(),
+
+  isActive: zod
+    .boolean()
+    .optional(),
+});

@@ -70,7 +70,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
             },
     });
 
-    // Fetch product data if editing
+   
     useEffect(() => {
         if (productId) {
             fetchProductData();
@@ -83,7 +83,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
             const res = await axiosInstance.get(`/api/product/single-product/${productId}`);
             const product = res.data.product;
 
-            // Populate form with product data
+            
             setValue("name", product.name);
             setValue("type", product.type);
             setValue("unit", product.unit);

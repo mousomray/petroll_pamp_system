@@ -34,42 +34,89 @@ const createFinancialYear = async (req, res) => {
 };
 
 const getFinancialYears = async (req, res) => {
-    try {
-        const userId = req.user._id;
+  try {
+    const userId = req.user._id;
 
-        const years = await FinancialYear.find({ userId })
-            .sort({ startDate: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit =
+      parseInt(req.query.limit) ||
+      parseInt(process.env.DEFAULT_PAGE_SIZE) ||
+      10;
 
-        res.json({
-            success: true,
-            data: years
-        });
+    const search = req.query.search || "";
+    const skip = (page - 1) * limit;
 
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+    const filter = { userId };
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
     }
+
+    const totalRecords = await FinancialYear.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    const years = await FinancialYear.find(filter)
+      .sort({ startDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return res.status(200).json({
+      success: true,
+      page,
+      totalPages,
+      totalRecords,
+      financialYears: years,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 const getActiveFinancialYear = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const activeYear = await FinancialYear.findOne({
-            userId,
-            isActive: true
-        });
-        res.json({
-            success: true,
-            data: activeYear
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+  try {
+    const userId = req.user._id;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit =
+      parseInt(req.query.limit) ||
+      parseInt(process.env.DEFAULT_PAGE_SIZE) ||
+      10;
+
+    const search = req.query.search || "";
+    const skip = (page - 1) * limit;
+
+    const filter = {
+      userId,
+      isActive: true,
+    };
+
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
     }
+
+    const totalRecords = await FinancialYear.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    const activeYears = await FinancialYear.find(filter)
+      .sort({ startDate: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return res.status(200).json({
+      success: true,
+      page,
+      totalPages,
+      totalRecords,
+      financialYears: activeYears,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 const updateFinancialYear = async (req, res) => {
@@ -95,7 +142,7 @@ const updateFinancialYear = async (req, res) => {
                 message: "Financial Year not found"
             });
         }
-        res.json({
+       return res.json({
             success: true,
             message: "Financial Year updated",
             data: updated
@@ -126,23 +173,53 @@ const deleteFinancialYear = async (req, res) => {
             });
         }
 
-        res.json({
+       return res.json({
             success: true,
             message: "Financial Year deleted successfully"
         });
 
     } catch (error) {
-        res.status(500).json({
+       return res.status(500).json({
             success: false,
             message: error.message
         });
     }
 };
 
+const getSingleFinancialYear = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const financialYear = await FinancialYear.findOne({
+      _id: id,
+      userId,
+    });
+
+    if (!financialYear) {
+      return res.status(404).json({
+        success: false,
+        message: "Financial Year not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      financialYear: financialYear,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
     createFinancialYear,
     getFinancialYears,
     getActiveFinancialYear,
+    getSingleFinancialYear, 
     updateFinancialYear,
     deleteFinancialYear
 };

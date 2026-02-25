@@ -123,7 +123,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
                 position: "fixed",
                 top: 0,
                 left: collapsed ? "80px" : "280px",
-                right: 0,
+                right: 5,
                 height: "72px",
                 transition: "left 0.3s",
                 zIndex: 999,
