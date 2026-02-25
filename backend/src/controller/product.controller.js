@@ -196,7 +196,7 @@ const dropDownProducts = async (req, res) => {
         })
         return res.json({
             success: true,
-            data: products
+            products: products
         })
     } catch (error) {
         return res.status(500).json({
