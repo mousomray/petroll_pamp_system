@@ -181,3 +181,68 @@ export const updateFinancialYearSchema = zod.object({
     .boolean()
     .optional(),
 });
+
+export const createSupplierSchema = zod.object({
+  name: zod
+    .string()
+    .min(2, "Name must be at least 2 characters"),
+
+  email: zod
+    .string()
+    .email("Invalid email format")
+    .toLowerCase(),
+
+  phone: zod
+    .string()
+    .min(10, "Phone number must be at least 10 digits")
+    .max(11, "Phone number too long"),
+
+  gstId: zod
+    .string()
+    .min(15, "GST ID must be at least 15 characters")
+    .max(15, "GST ID cannot exceed 15 characters")
+    .optional(),
+
+  address: zod
+    .string()
+    .min(5, "Address must be at least 5 characters")
+    .optional(),
+
+  isActive: zod
+    .boolean()
+    .optional(),
+});
+
+export const updateSupplierSchema = zod.object({
+  name: zod
+    .string()
+    .min(2)
+    .optional(),
+
+  email: zod
+    .string()
+    .email()
+    .toLowerCase()
+    .optional(),
+
+  phone: zod
+    .string()
+    .min(10)
+    .max(15)
+    .optional(),
+
+  gstId: zod
+    .string()
+    .min(15)
+    .max(15)
+    .optional(),
+
+  address: zod
+    .string()
+    .min(5)
+    .optional(),
+
+  isActive: zod
+    .boolean()
+    .optional()
+});
