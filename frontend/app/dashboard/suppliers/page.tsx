@@ -256,9 +256,33 @@ function Page() {
     </div>
   );
 
+   const EditSupplierHeader = (
+    <div className="flex items-center gap-3 bg-gradient-to-r from-amber-500 to-orange-500  mb-2 p-3 rounded-t-lg">
+      <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+        <i className="pi pi-truck text-white text-2xl"></i>
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-white">Edit Supplier</h2>
+        <p className="text-sm text-white/90">Update supplier information</p>
+      </div>
+    </div>
+  );
+
+   const AddSupplierHeader = (
+    <div className="flex items-center gap-3 bg-gradient-to-r from-blue-500 to-indigo-600  mb-2 p-3 rounded-t-lg">
+      <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+        <i className="pi pi-truck text-white text-2xl"></i>
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-white">Add New Supplier</h2>
+        <p className="text-sm text-white/90">Create a new team supplier</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="w-full flex justify-center items-center">
-      <div className="w-full card bg-white p-4 rounded-lg shadow">
+    <div className="w-full">
+      <div className="w-full bg-white p-4 rounded-lg shadow overflow-x-auto">
         <DataTable
           value={supplierData}
           header={header}
@@ -277,7 +301,7 @@ function Page() {
             }))
           }
           responsiveLayout="scroll"
-          emptyMessage="No suppliers found"
+          emptyMessage={EmptyState}
         >
           <Column header="Avatar" body={imageTemplate} />
           <Column field="name" header="Name" sortable />
@@ -294,7 +318,7 @@ function Page() {
         <Menu model={menuModel} popup ref={menu} />
 
         <Dialog 
-          header={editSupplierId ? "Edit Supplier" : "Add Supplier"} 
+          header={editSupplierId ? EditSupplierHeader : AddSupplierHeader} 
           visible={visible} 
           style={{ width: "50vw" }} 
           onHide={() => {

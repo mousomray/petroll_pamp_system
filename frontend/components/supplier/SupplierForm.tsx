@@ -54,7 +54,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
             },
     });
 
-    // Fetch supplier data if editing
+    
     useEffect(() => {
         if (supplierId) {
             fetchSupplierData();
