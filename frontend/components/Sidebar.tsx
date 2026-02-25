@@ -113,6 +113,11 @@ const Sidebar: React.FC<SidebarProps> = ({ role,user }) => {
               label: "All Products",
               icon: "pi-list",
             },
+            {
+              href: "/dashboard/suppliers",
+              label: "Suppliers",
+              icon: "pi-truck",
+            }
           ],
         },
         {
@@ -120,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role,user }) => {
           icon: "pi-database",
           children: [
             {
-              href: "/dashboard/opening-Stock",
+              href: "/dashboard/opening-stock",
               label: "Opening Stock",
               icon: "pi-chart-bar",
             },

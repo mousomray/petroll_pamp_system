@@ -1,56 +1,67 @@
 const mongoose = require("mongoose");
 const ProductFinancialStock = require("../model/productFinancialStock.model");
+const CurrentStockModel = require("../model/currentStock.model");
 const { createProductFinancialStockSchema, updateProductFinancialStockSchema } = require("../schema/productFinancialStock");
 
 const createProductFinancialStock = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const parsed = createProductFinancialStockSchema.parse(req.body);
         const userId = req.user._id;
-
         const { productId, financialYearId, openingStock = 0 } = parsed;
-
-        const existing = await ProductFinancialStock.findOne({
-            userId,
-            productId,
-            financialYearId
-        });
-
-        if (existing) {
-            return res.status(400).json({
-                success: false,
-                message: "Stock already exists for this product and financial year"
-            });
-        }
-
         if (openingStock < 0) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({
                 success: false,
                 message: "Opening stock cannot be negative"
             });
         }
-
-        const totalPurchase = 0;
-        const totalSale = 0;
-
-        const closingStock = openingStock;
-
-        const stock = await ProductFinancialStock.create({
+        const existing = await ProductFinancialStock.findOne({
             userId,
             productId,
-            financialYearId,
-            openingStock,
-            totalPurchase,
-            totalSale,
-            closingStock
-        });
+            financialYearId
+        }).session(session);
+        if (existing) {
+            await session.abortTransaction();
+            session.endSession();
+
+            return res.status(400).json({
+                success: false,
+                message: "Stock already exists for this product and financial year"
+            });
+        }
+        const stock = await ProductFinancialStock.create(
+            [{
+                userId,
+                productId,
+                financialYearId,
+                openingStock,
+                totalPurchase: 0,
+                totalSale: 0,
+                closingStock: openingStock
+            }],
+            { session }
+        );
+        await CurrentStockModel.updateOne(
+            { userId, productId },
+            { $set: { quantity: openingStock } },
+            { upsert: true, session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
 
         return res.status(201).json({
             success: true,
             message: "Opening stock created successfully",
-            data: stock
+            data: stock[0]
         });
 
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -212,6 +223,9 @@ const getSingleProductFinancialStock = async (req, res) => {
 };
 
 const updateProductFinancialStock = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
         const parsed = updateProductFinancialStockSchema.parse(req.body);
 
@@ -221,14 +235,19 @@ const updateProductFinancialStock = async (req, res) => {
         const existing = await ProductFinancialStock.findOne({
             _id: id,
             userId
-        });
+        }).session(session);
 
         if (!existing) {
+            await session.abortTransaction();
+            session.endSession();
+
             return res.status(404).json({
                 success: false,
                 message: "Stock not found"
             });
         }
+
+        const oldClosingStock = existing.closingStock;
 
         const openingStock =
             parsed.openingStock !== undefined
@@ -236,18 +255,24 @@ const updateProductFinancialStock = async (req, res) => {
                 : existing.openingStock;
 
         if (openingStock < 0) {
+            await session.abortTransaction();
+            session.endSession();
+
             return res.status(400).json({
                 success: false,
                 message: "Opening stock cannot be negative"
             });
         }
 
-        const closingStock =
+        const newClosingStock =
             openingStock +
             existing.totalPurchase -
             existing.totalSale;
 
-        if (closingStock < 0) {
+        if (newClosingStock < 0) {
+            await session.abortTransaction();
+            session.endSession();
+
             return res.status(400).json({
                 success: false,
                 message: "Closing stock cannot be negative"
@@ -255,17 +280,29 @@ const updateProductFinancialStock = async (req, res) => {
         }
 
         existing.openingStock = openingStock;
-        existing.closingStock = closingStock;
+        existing.closingStock = newClosingStock;
 
-        await existing.save();
+        await existing.save({ session });
+
+        await CurrentStockModel.updateOne(
+            { userId, productId: existing.productId },
+            { $set: { quantity: newClosingStock } },
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
 
         return res.json({
             success: true,
-            message: "Opening stock updated successfully",
+            message: "Opening stock updated and current stock synced successfully",
             data: existing
         });
 
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
         return res.status(400).json({
             success: false,
             message: error.message
@@ -276,10 +313,10 @@ const updateProductFinancialStock = async (req, res) => {
 const deleteProductFinancialStock = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { id } = req.params;
+        const { stockId } = req.params;
 
         const deleted = await ProductFinancialStock.findOneAndDelete({
-            _id: id,
+            _id: stockId,
             userId
         });
 
