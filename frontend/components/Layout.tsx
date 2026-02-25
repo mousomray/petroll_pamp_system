@@ -44,17 +44,17 @@ const Layout: React.FC<LayoutProps> = ({
       window.removeEventListener("sidebarToggle", handleToggleEvent);
     };
   }, []);
-   
+
 
   const role: Role = profile?.role ?? "ADMIN";
   const name = profile?.name ?? "ADMIN"
   const image = "/img/avatars/avatar-2.jpg"
   const email = profile?.email ?? "admin@gmail.com"
- 
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" ,overflowX: "hidden",}}>
       {/* Sidebar - Fixed */}
-       <Sidebar user={{name: name, email: email, image: image}} role={role}/>
+      <Sidebar user={{ name: name, email: email, image: image }} role={role} />
       {/* Main Content Area */}
       <div
         style={{
@@ -67,7 +67,7 @@ const Layout: React.FC<LayoutProps> = ({
         }}
       >
         {/* Navbar - Fixed */}
-        <Navbar role={role} user={{name: name , image: image}} />
+        <Navbar role={role} user={{ name: name, image: image }} />
 
         {/* Page Content */}
         <main
@@ -76,9 +76,12 @@ const Layout: React.FC<LayoutProps> = ({
             marginTop: "72px", // Height of navbar
             padding: "24px",
             overflowY: "auto",
+            width: collapsed
+              ? "calc(100vw - 80px)"
+              : "calc(100vw - 300px)",
           }}
         >
-          {children}
+        {children}
         </main>
       </div>
     </div>

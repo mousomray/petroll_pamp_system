@@ -261,6 +261,30 @@ function Page() {
     </div>
   );
 
+    const EditProductHeader = (
+    <div className="flex items-center gap-3 bg-gradient-to-r from-amber-500 to-orange-500  mb-2 p-3 rounded-t-lg">
+      <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+        <i className="pi pi-box text-white text-2xl"></i>
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-white">Edit Product</h2>
+        <p className="text-sm text-white/90">Update product information</p>
+      </div>
+    </div>
+  );
+
+   const AddProductHeader = (
+    <div className="flex items-center gap-3 bg-gradient-to-r from-blue-500 to-indigo-600  mb-2 p-3 rounded-t-lg">
+      <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+        <i className="pi pi-box text-white text-2xl"></i>
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-white">Add New Product</h2>
+        <p className="text-sm text-white/90">Create a new items product</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="w-full flex justify-center items-center">
       <div className="w-full card bg-white p-4 rounded-lg shadow">
@@ -300,7 +324,7 @@ function Page() {
         <Menu model={menuModel} popup ref={menu} />
 
         <Dialog 
-          header={editProductId ? "Edit Product" : "Add Product"} 
+          header={editProductId ? EditProductHeader : AddProductHeader} 
           visible={visible} 
           style={{ width: "50vw" }} 
           onHide={() => {
