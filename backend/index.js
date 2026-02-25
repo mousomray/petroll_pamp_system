@@ -31,12 +31,14 @@ const loginRoutes = require("./src/routes/login.routes.js")
 const productRoutes = require("./src/routes/product.routes.js")
 const financialRoutes = require("./src/routes/financial.routes.js")
 const productFinancialStockRoutes = require("./src/routes/productFinancialStock.routes.js")
+const supplierRoutes = require("./src/routes/supplier.routes.js")
 
 app.use("/api/register", registerRoutes)
 app.use("/api/login", loginRoutes)
 app.use("/api/product",productRoutes)
 app.use("/api/financial-year", financialRoutes)
 app.use("/api/financial-stock", productFinancialStockRoutes)
+app.use("/api/supplier",supplierRoutes)
 
 const port = process.env.PORT
 
