@@ -256,15 +256,15 @@ const deleteTank = async (req, res) => {
     }
 };
 
-const allTanks = async(req,res) =>{
-    try{
+const allTanks = async (req, res) => {
+    try {
         const userId = req.user.id;
-        const tanks = await Tank.find({userId:userId,isActive:true});
+        const tanks = await Tank.find({ userId: userId, isActive: true });
         return res.json({
-            success:true,
-            data:tanks
+            success: true,
+            data: tanks
         });
-    }catch(error){
+    } catch (error) {
         return res.status(400).json({
             success: false,
             message: error.message
@@ -272,11 +272,58 @@ const allTanks = async(req,res) =>{
     }
 }
 
+const getTanksByProduct = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { productId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid productId"
+            });
+        }
+
+        const product = await Product.findOne({
+            _id: productId,
+            userId
+        });
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found"
+            });
+        }
+
+        const tanks = await Tank.find({
+            userId,
+            productId,
+            isActive: true
+        })
+            .select("tankName capacity currentQuantity createdAt")
+            .sort({ createdAt: -1 });
+
+        return res.json({
+            success: true,
+            total: tanks.length,
+            data: tanks
+        });
+
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 module.exports = {
     addTank,
     listTank,
     getSingleTank,
     updateTank,
     deleteTank,
-    allTanks
+    allTanks,
+    getTanksByProduct
 }

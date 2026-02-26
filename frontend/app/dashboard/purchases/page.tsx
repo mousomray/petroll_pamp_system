@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import axiosInstance from "@/service/axios.service";
 import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
+import PurchaseForm from "@/components/purchase/PurchaseForm";
 import { Dialog } from "primereact/dialog";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -366,10 +367,10 @@ function Page() {
         {/* popup menu (single instance) */}
         <Menu model={menuModel} popup ref={menu} />
 
-        <Dialog 
-          header={editPurchaseId ? EditPurchaseHeader : AddPurchaseHeader} 
-          visible={visible} 
-          style={{ width: "70vw" }} 
+        <Dialog
+          header={editPurchaseId ? EditPurchaseHeader : AddPurchaseHeader}
+          visible={visible}
+          style={{ width: "70vw" }}
           onHide={() => {
             setVisible(false);
             setEditPurchaseId(null);
@@ -377,9 +378,19 @@ function Page() {
           }}
         >
           <div className="p-4">
-            <p className="text-center text-gray-500">
-              Purchase form component will be implemented here
-            </p>
+            <PurchaseForm
+              onClose={() => {
+                setVisible(false);
+                setEditPurchaseId(null);
+                setSelectedPurchase(null);
+              }}
+              onSuccess={async () => {
+                setVisible(false);
+                setEditPurchaseId(null);
+                setSelectedPurchase(null);
+                await purchaseDataGet();
+              }}
+            />
           </div>
         </Dialog>
 

@@ -11,7 +11,7 @@ router.get("/all-products", verifyJwt, getAllProducts);
 router.get("/single-product/:id", getSingleProduct);
 router.get("/dropdown-products", verifyJwt, dropDownProducts);
 router.delete("/delete-product/:id", deleteProduct);
-//router.get("/dropdown-all-products", verifyJwt, allProductDropDownProducts);
+router.get("/dropdown-all-products", verifyJwt, allProductDropDownProducts);
 
 
 module.exports = router

@@ -6,11 +6,6 @@ const UserModel = require("../model/user.model")
 const { ZodError } = require("zod");
 const { createSupplierSchema, updateSupplierSchema } = require("../schema/supplier.schema")
 
-
-
-
-
-
 const createSupplier = async (req, res) => {
     try {
         const parsedData = createSupplierSchema.parse(req.body);
@@ -194,10 +189,27 @@ const deleteSupplier = async (req, res) => {
     }
 };
 
+const dropDownSuppliers = async(req,res) =>{
+    try{
+        const userId = req.user?.id;
+        const suppliers = await SupplierModel.find({ userId, isActive: true });
+        return res.status(200).json({
+            success: true,
+            suppliers: suppliers,
+        });
+    }catch(error){
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+}
+
 module.exports = {
   createSupplier,
   getAllSuppliers,
   getSingleSupplier,
   updateSupplier,
   deleteSupplier,
+  dropDownSuppliers
 };
