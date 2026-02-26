@@ -246,3 +246,43 @@ export const updateSupplierSchema = zod.object({
     .boolean()
     .optional()
 });
+
+const objectIdRegex = /^[0-9a-fA-F]{24}$/;
+
+export const createNozzleSchema = zod.object({
+  nozzleNumber: zod
+    .string()
+    .min(2, "Nozzle number must be at least 2 characters")
+    .max(20, "Nozzle number too long")
+    .trim(),
+
+  tank: zod
+    .string()
+    .regex(objectIdRegex, "Invalid Tank ID"),
+
+  machineName: zod
+    .string()
+    .optional(),
+});
+
+export const updateNozzleSchema = zod.object({
+  nozzleNumber: zod
+    .string()
+    .min(2, "Nozzle number must be at least 2 characters")
+    .max(20, "Nozzle number too long")
+    .trim()
+    .optional(),
+
+  tank: zod
+    .string()
+    .regex(objectIdRegex, "Invalid Tank ID")
+    .optional(),
+
+  machineName: zod
+    .string()
+    .optional(),
+
+  isActive: zod
+    .boolean()
+    .optional(),
+});

@@ -38,9 +38,9 @@ const nozzleSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-const nozzleModle = mongoose.model("Nozzle",nozzleSchema)
+const NozzleModle = mongoose.model("Nozzle",nozzleSchema)
 
-module.exports = nozzleModle
+module.exports = NozzleModle
 
 
 
