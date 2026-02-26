@@ -206,6 +206,25 @@ const dropDownProducts = async (req, res) => {
     }
 }
 
+const allProductDropDownProducts = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const products = await ProductModel.find({
+            isActive: true,
+            userId: userId,
+        })
+        return res.json({
+            success: true,
+            products: products
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        })
+    }
+}
+
 
 
 module.exports = {
@@ -214,5 +233,6 @@ module.exports = {
     getSingleProduct,
     updateProduct,
     deleteProduct,
-    dropDownProducts
+    dropDownProducts,
+    allProductDropDownProducts
 };
