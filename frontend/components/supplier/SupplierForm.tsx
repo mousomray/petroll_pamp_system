@@ -54,7 +54,6 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
             },
     });
 
-    
     useEffect(() => {
         if (supplierId) {
             fetchSupplierData();
