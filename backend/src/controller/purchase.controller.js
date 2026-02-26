@@ -10,21 +10,33 @@ const createPurchase = async (req, res) => {
     const session = await mongoose.startSession();
 
     try {
-        session.startTransaction();
+        await session.startTransaction();
 
-        const parsed = req.body;
         const userId = req.user._id;
-
         const {
             supplierId,
-            financialYearId,
-            invoiceNo,
             purchaseDate,
-            paymentStatus,
             paymentMethod,
-            paidAmount,
             items
-        } = parsed;
+        } = req.body;
+
+        if (!items || items.length === 0) {
+            throw new Error("Purchase items required");
+        }
+
+        // ===============================
+        // 🔢 AUTO INVOICE GENERATION
+        // ===============================
+        const lastPurchase = await PurchaseModel.findOne({ userId })
+            .sort({ createdAt: -1 })
+            .session(session);
+
+        let invoiceNo = "INV-1";
+
+        if (lastPurchase) {
+            const lastNumber = parseInt(lastPurchase.invoiceNo.split("-")[1]);
+            invoiceNo = `INV-${lastNumber + 1}`;
+        }
 
         let subTotal = 0;
         let totalCgst = 0;
@@ -35,7 +47,7 @@ const createPurchase = async (req, res) => {
         const purchaseItemsData = [];
 
         // =====================================================
-        // 🔁 PROCESS EACH ITEM
+        // 🔁 PROCESS ITEMS
         // =====================================================
         for (const item of items) {
 
@@ -50,36 +62,21 @@ const createPurchase = async (req, res) => {
 
             const baseAmount = item.quantity * costPrice;
 
-            const discountAmount =
-                (baseAmount * (item.discount || 0)) / 100;
+            const cgstPercent = product.cgstPercent || 0;
+            const sgstPercent = product.sgstPercent || 0;
+            const igstPercent = product.igstPercent || 0;
 
-            const afterDiscount = baseAmount - discountAmount;
-
-            // ================= GST Calculation =================
-            const cgstAmount =
-                (afterDiscount * (item.cgstPercent || 0)) / 100;
-
-            const sgstAmount =
-                (afterDiscount * (item.sgstPercent || 0)) / 100;
-
-            const igstAmount =
-                (afterDiscount * (item.igstPercent || 0)) / 100;
-
-            // ❌ Prevent wrong GST combination
-            if (
-                (item.cgstPercent > 0 || item.sgstPercent > 0) &&
-                item.igstPercent > 0
-            ) {
-                throw new Error(
-                    "Use either CGST/SGST or IGST, not both"
-                );
+            if ((cgstPercent > 0 || sgstPercent > 0) && igstPercent > 0) {
+                throw new Error("Invalid GST setup in product");
             }
 
+            const cgstAmount = (baseAmount * cgstPercent) / 100;
+            const sgstAmount = (baseAmount * sgstPercent) / 100;
+            const igstAmount = (baseAmount * igstPercent) / 100;
+
             const totalTax = cgstAmount + sgstAmount + igstAmount;
+            const itemTotal = baseAmount + totalTax;
 
-            const itemTotal = afterDiscount + totalTax;
-
-            // ================= MASTER TOTAL UPDATE =================
             subTotal += baseAmount;
             totalCgst += cgstAmount;
             totalSgst += sgstAmount;
@@ -87,59 +84,34 @@ const createPurchase = async (req, res) => {
             grandTotal += itemTotal;
 
             purchaseItemsData.push({
-                productId: item.productId,
+                productId: product._id,
                 quantity: item.quantity,
                 costPrice,
-                discount: item.discount || 0,
-
-                cgstPercent: item.cgstPercent || 0,
-                sgstPercent: item.sgstPercent || 0,
-                igstPercent: item.igstPercent || 0,
-
+                cgstPercent,
+                sgstPercent,
+                igstPercent,
                 cgstAmount,
                 sgstAmount,
                 igstAmount,
-
                 taxAmount: totalTax,
                 total: itemTotal,
-
                 tankId: item.tankId || null
             });
         }
 
-        // =====================================================
-        // 💰 PAYMENT VALIDATION
-        // =====================================================
-        if (paidAmount > grandTotal) {
-            throw new Error("Paid amount cannot exceed total amount");
-        }
+        // ===============================
+        // 💰 FULL PAYMENT SYSTEM
+        // ===============================
+        const paidAmount = grandTotal;
+        const dueAmount = 0;
+        const paymentStatus = "PAID";
 
-        const dueAmount = grandTotal - paidAmount;
-
-        if (paymentStatus === "PAID" && dueAmount !== 0) {
-            throw new Error("For PAID status, due must be 0");
-        }
-
-        if (paymentStatus === "DUE" && paidAmount !== 0) {
-            throw new Error("For DUE status, paidAmount must be 0");
-        }
-
-        if (
-            paymentStatus === "PARTIAL" &&
-            (paidAmount === 0 || paidAmount === grandTotal)
-        ) {
-            throw new Error(
-                "For PARTIAL status, paidAmount must be between 0 and total"
-            );
-        }
-
-        // =====================================================
+        // ===============================
         // 💾 CREATE PURCHASE MASTER
-        // =====================================================
+        // ===============================
         const purchaseDoc = await PurchaseModel.create([{
             userId,
             supplierId,
-            financialYearId,
             invoiceNo,
             purchaseDate,
             paymentStatus,
@@ -157,7 +129,6 @@ const createPurchase = async (req, res) => {
 
         const purchaseId = purchaseDoc[0]._id;
 
-        // attach purchaseId to items
         purchaseItemsData.forEach(item => {
             item.purchaseId = purchaseId;
         });
@@ -165,58 +136,18 @@ const createPurchase = async (req, res) => {
         await PurchaseItemModel.insertMany(purchaseItemsData, { session });
 
         // =====================================================
-        // 📦 STOCK + FINANCIAL + TANK UPDATE
+        // 📦 STOCK UPDATE
         // =====================================================
         for (const item of purchaseItemsData) {
 
-            // ---------- CURRENT STOCK ----------
-            let currentStock = await CurrentStock.findOne({
-                userId,
-                productId: item.productId
-            }).session(session);
+            // ===== CURRENT STOCK
+            await CurrentStock.updateOne(
+                { userId, productId: item.productId },
+                { $inc: { quantity: item.quantity } },
+                { upsert: true, session }
+            );
 
-            if (!currentStock) {
-                currentStock = new CurrentStock({
-                    userId,
-                    productId: item.productId,
-                    quantity: 0,
-                    amount: 0
-                });
-            }
-
-            currentStock.quantity += item.quantity;
-            currentStock.amount += item.quantity * item.costPrice;
-
-            await currentStock.save({ session });
-
-            // ---------- FINANCIAL STOCK ----------
-            let financialStock = await FinancialStock.findOne({
-                userId,
-                productId: item.productId,
-                financialYearId
-            }).session(session);
-
-            if (!financialStock) {
-                financialStock = new FinancialStock({
-                    userId,
-                    productId: item.productId,
-                    financialYearId,
-                    openingStock: 0,
-                    totalPurchase: item.quantity,
-                    totalSale: 0,
-                    closingStock: item.quantity
-                });
-            } else {
-                financialStock.totalPurchase += item.quantity;
-                financialStock.closingStock =
-                    financialStock.openingStock +
-                    financialStock.totalPurchase -
-                    financialStock.totalSale;
-            }
-
-            await financialStock.save({ session });
-
-            // ---------- TANK UPDATE ----------
+            // ===== TANK UPDATE
             if (item.tankId) {
 
                 const tank = await Tank.findOne({
@@ -227,21 +158,13 @@ const createPurchase = async (req, res) => {
 
                 if (!tank) throw new Error("Tank not found");
 
-                if (!tank.productId.equals(item.productId)) {
+                if (!tank.productId.equals(item.productId))
                     throw new Error("Tank product mismatch");
-                }
 
-                const newQuantity =
-                    tank.currentQuantity + item.quantity;
+                if (tank.currentQuantity + item.quantity > tank.capacity)
+                    throw new Error("Tank capacity exceeded");
 
-                if (newQuantity > tank.capacity) {
-                    throw new Error(
-                        `Tank capacity exceeded. Max: ${tank.capacity}`
-                    );
-                }
-
-                tank.currentQuantity = newQuantity;
-
+                tank.currentQuantity += item.quantity;
                 await tank.save({ session });
             }
         }
@@ -253,14 +176,9 @@ const createPurchase = async (req, res) => {
             success: true,
             message: "Purchase created successfully",
             data: {
+                invoiceNo,
                 purchaseId,
-                subTotal,
-                cgst: totalCgst,
-                sgst: totalSgst,
-                igst: totalIgst,
-                totalAmount: grandTotal,
-                paidAmount,
-                dueAmount
+                totalAmount: grandTotal
             }
         });
 

@@ -4,11 +4,14 @@ const { z } = require("zod");
 // allowed types
 const productTypes = ["FUEL", "OIL", "TYRE", "ACCESSORY"];
 
-// ✅ define units (THIS WAS MISSING)
+// allowed units
 const productUnits = ["LITRE", "PIECE", "KG", "BOX"];
 
-//  Create Product Schema
+/* ======================================================
+   🟢 CREATE PRODUCT SCHEMA
+====================================================== */
 const createProductSchema = z.object({
+
     name: z
         .string({ required_error: "Product name is required" })
         .min(1, "Product name cannot be empty")
@@ -33,14 +36,70 @@ const createProductSchema = z.object({
         .number({ required_error: "Selling price is required" })
         .nonnegative("Selling price must be >= 0"),
 
+    quantity: z
+        .number()
+        .nonnegative("Quantity cannot be negative")
+        .optional(),
+
     minimumStockAlert: z
         .number()
         .nonnegative("Minimum stock alert cannot be negative")
         .optional(),
+
+    // ================= GST =================
+    cgstPercent: z
+        .number()
+        .min(0, "CGST must be >= 0")
+        .max(100, "CGST cannot exceed 100")
+        .optional()
+        .default(0),
+
+    sgstPercent: z
+        .number()
+        .min(0, "SGST must be >= 0")
+        .max(100, "SGST cannot exceed 100")
+        .optional()
+        .default(0),
+
+    igstPercent: z
+        .number()
+        .min(0, "IGST must be >= 0")
+        .max(100, "IGST cannot exceed 100")
+        .optional()
+        .default(0),
+
+    hsnCode: z.string().optional()
+
+}).superRefine((data, ctx) => {
+
+    // 🔥 Selling price validation
+    if (data.sellingPrice < data.costPrice) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Selling price must be greater than or equal to cost price",
+            path: ["sellingPrice"]
+        });
+    }
+
+    // 🔥 GST validation
+    if (
+        (data.cgstPercent > 0 || data.sgstPercent > 0) &&
+        data.igstPercent > 0
+    ) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Use either CGST/SGST OR IGST, not both",
+            path: ["igstPercent"]
+        });
+    }
 });
 
-//  Update Product Schema
+
+/* ======================================================
+   🟡 UPDATE PRODUCT SCHEMA
+====================================================== */
 const updateProductSchema = z.object({
+
     name: z.string().min(1, "Product name cannot be empty").trim().optional(),
 
     image: z.string().optional(),
@@ -57,27 +116,52 @@ const updateProductSchema = z.object({
 
     sellingPrice: z.number().nonnegative("Selling price must be >= 0").optional(),
 
+    quantity: z.number().nonnegative("Quantity cannot be negative").optional(),
+
     minimumStockAlert: z
         .number()
         .nonnegative("Minimum stock alert cannot be negative")
         .optional(),
 
-    isActive: z.boolean().optional(),
-});
+    cgstPercent: z.number().min(0).max(100).optional(),
 
-// price validation helper
-const validatePrice = (data) => {
+    sgstPercent: z.number().min(0).max(100).optional(),
+
+    igstPercent: z.number().min(0).max(100).optional(),
+
+    hsnCode: z.string().optional(),
+
+    isActive: z.boolean().optional()
+
+}).superRefine((data, ctx) => {
+
+    // 🔥 If both price provided, validate
     if (
         typeof data.costPrice === "number" &&
         typeof data.sellingPrice === "number" &&
         data.sellingPrice < data.costPrice
     ) {
-        throw new Error("Selling price must be greater than or equal to cost price");
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Selling price must be greater than or equal to cost price",
+            path: ["sellingPrice"]
+        });
     }
-};
+
+    // 🔥 GST validation
+    if (
+        (data.cgstPercent > 0 || data.sgstPercent > 0) &&
+        data.igstPercent > 0
+    ) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Use either CGST/SGST OR IGST, not both"
+        });
+    }
+});
+
 
 module.exports = {
     createProductSchema,
-    updateProductSchema,
-    validatePrice,
+    updateProductSchema
 };

@@ -44,19 +44,17 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
             supplierId: "",
             financialYearId: "",
             invoiceNo: "",
-            purchaseDate: "",
-            paymentStatus: "UNPAID",
+            purchaseDate: new Date(),
+            paymentStatus: "DUE",
             paymentMethod: "CASH",
             paidAmount: 0,
             items: [
                 {
                     productId: "",
                     quantity: 1,
+                    costPrice: 0,
                     discount: 0,
-                    cgstPercent: 2.5,
-                    sgstPercent: 2.5,
-                    igstPercent: 0,
-                    tankId: "",
+                    tankId: null,
                 },
             ],
         },
@@ -72,12 +70,12 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
     const paymentStatusOptions = [
         { label: "Paid", value: "PAID" },
         { label: "Partial", value: "PARTIAL" },
+        { label: "Due", value: "DUE" },
     ];
 
     const paymentMethodOptions = [
         { label: "Cash", value: "CASH" },
-        { label: "Online", value: "ONLINE" },
-        { label: "Cheque", value: "CHEQUE" },
+        { label: "Bank", value: "BANK" },
         { label: "UPI", value: "UPI" },
         { label: "Card", value: "CARD" },
     ];
@@ -164,11 +162,9 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
         append({
             productId: "",
             quantity: 1,
+            costPrice: 0,
             discount: 0,
-            cgstPercent: 2.5,
-            sgstPercent: 2.5,
-            igstPercent: 0,
-            tankId: "",
+            tankId: null,
         });
     };
 
@@ -320,15 +316,9 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                     control={control}
                                     render={({ field }) => (
                                         <Calendar
-                                            value={field.value ? new Date(field.value) : null}
+                                            value={field.value ?? null}
                                             onChange={(e) => {
-                                                if (e.value) {
-                                                    const date = e.value as Date;
-                                                    const year = date.getFullYear();
-                                                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                    const day = String(date.getDate()).padStart(2, '0');
-                                                    field.onChange(`${year}-${month}-${day}`);
-                                                }
+                                                field.onChange(e.value ?? null);
                                             }}
                                             dateFormat="dd/mm/yy"
                                             placeholder="Select purchase date"
@@ -508,13 +498,13 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                                             if (data.length > 0) {
                                                                 setValue(`items.${index}.tankId`, data[0]._id);
                                                             } else {
-                                                                setValue(`items.${index}.tankId`, "");
+                                                                setValue(`items.${index}.tankId`, null);
                                                                 toast.warning("No tanks available for selected product");
                                                             }
                                                         } catch (err) {
                                                             console.error("Failed to fetch tanks for product", err);
                                                             setItemTanks(prev => ({ ...prev, [index]: [] }));
-                                                            setValue(`items.${index}.tankId`, "");
+                                                            setValue(`items.${index}.tankId`, null);
                                                             toast.error("Failed to load tanks for selected product");
                                                         } finally {
                                                             setItemTankLoading(prev => ({ ...prev, [index]: false }));
@@ -522,7 +512,7 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                                     } else {
                                                         // non-litre products: clear any tank data
                                                         setItemTanks(prev => ({ ...prev, [index]: [] }));
-                                                        setValue(`items.${index}.tankId`, "");
+                                                        setValue(`items.${index}.tankId`, null);
                                                     }
                                                 }}
                                                 options={productOptions}

@@ -9,41 +9,86 @@ const uploadSingleImage = require("../helper/upload.js");
 
 const createProduct = async (req, res) => {
     try {
+        // ===============================
+        // ✅ Validate Body
+        // ===============================
         const parsedData = createProductSchema.parse(req.body);
-        const userId = req.user?.id;
+
+        const userId = req.user?._id || req.user?.id;
+
         if (!userId) {
-            return res.status(401).json({ message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        const user = await UserModel.findById(userId)
+
+        // ===============================
+        // ✅ Check User & Role
+        // ===============================
+        const user = await UserModel.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
         if (user.role !== "ADMIN") {
-            return res.status(401).json({ message: "Unauthorized user role" });
+            return res.status(403).json({
+                success: false,
+                message: "Only ADMIN can create product"
+            });
         }
-        let photoUrl = null;
+
+        // ===============================
+        // 🖼 Upload Image (Optional)
+        // ===============================
+        let imageUrl = null;
 
         if (req.files?.image?.length > 0) {
             imageUrl = await uploadSingleImage(req.files.image[0]);
         }
 
+        // ===============================
+        // 💾 Create Product
+        // ===============================
         const product = await ProductModel.create({
             name: parsedData.name,
+            image: imageUrl,
             type: parsedData.type,
+            unit: parsedData.unit,
+
             costPrice: parsedData.costPrice,
             sellingPrice: parsedData.sellingPrice,
-            minimumStockAlert: parsedData.minimumStockAlert,
-            unit: parsedData.unit,
+
+            quantity: parsedData.quantity || 0,
+            minimumStockAlert: parsedData.minimumStockAlert || 0,
+
+            cgstPercent: parsedData.cgstPercent || 0,
+            sgstPercent: parsedData.sgstPercent || 0,
+            igstPercent: parsedData.igstPercent || 0,
+
+            hsnCode: parsedData.hsnCode || null,
+
             userId: user._id
         });
 
-        await product.save();
-
-        return res.status(200).json({
+        return res.status(201).json({
+            success: true,
             message: "Product created successfully",
-            product,
+            data: product
         });
 
     } catch (error) {
+
+        // ===============================
+        // ❌ Zod Validation Error
+        // ===============================
         if (error instanceof ZodError) {
             return res.status(400).json({
+                success: false,
                 message: "Validation failed",
                 errors: error.issues.map((err) => ({
                     field: err.path.join("."),
@@ -51,9 +96,12 @@ const createProduct = async (req, res) => {
                 })),
             });
         }
+
         console.error("Create Product Error:", error);
+
         return res.status(500).json({
-            message: "Internal server error",
+            success: false,
+            message: "Internal server error"
         });
     }
 };
@@ -61,38 +109,91 @@ const createProduct = async (req, res) => {
 
 const getAllProducts = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user._id || req.user.id;
 
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
+        let page = parseInt(req.query.page) || 1;
+        let limit =
+            parseInt(req.query.limit) ||
+            parseInt(process.env.DEFAULT_PAGE_SIZE) ||
+            10;
+
         const search = req.query.search || "";
 
-        const filter = {
-            isActive: true,
-            userId: userId,
-            name: { $regex: search, $options: "i" }
+        const matchStage = {
+            userId: new mongoose.Types.ObjectId(userId),
+            isActive: true
         };
 
-        const totalProducts = await ProductModel.countDocuments(filter);
-        const totalPages = Math.ceil(totalProducts / limit);
-        const skip = (page - 1) * limit;
+        if (search) {
+            matchStage.name = { $regex: search, $options: "i" };
+        }
 
-        const products = await ProductModel.find(filter)
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 });
+        const pipeline = [
+            { $match: matchStage },
+
+            {
+                $project: {
+                    name: 1,
+                    image: 1,
+                    type: 1,
+                    unit: 1,
+                    costPrice: 1,
+                    sellingPrice: 1,
+                    quantity: 1,
+                    minimumStockAlert: 1,
+
+                    cgstPercent: { $ifNull: ["$cgstPercent", 0] },
+                    sgstPercent: { $ifNull: ["$sgstPercent", 0] },
+                    igstPercent: { $ifNull: ["$igstPercent", 0] },
+
+                    hsnCode: 1,
+                    createdAt: 1,
+
+                    totalGstPercent: {
+                        $add: [
+                            { $ifNull: ["$cgstPercent", 0] },
+                            { $ifNull: ["$sgstPercent", 0] },
+                            { $ifNull: ["$igstPercent", 0] }
+                        ]
+                    }
+                }
+            },
+
+            { $sort: { createdAt: -1 } },
+
+            {
+                $facet: {
+                    data: [
+                        { $skip: (page - 1) * limit },
+                        { $limit: limit }
+                    ],
+                    totalCount: [
+                        { $count: "count" }
+                    ]
+                }
+            }
+        ];
+
+        const result = await ProductModel.aggregate(pipeline);
+
+        const products = result[0].data;
+        const totalProducts = result[0].totalCount[0]?.count || 0;
+        const totalPages = Math.ceil(totalProducts / limit);
 
         return res.status(200).json({
+            success: true,
             page,
+            limit,
             totalPages,
             totalProducts,
-            products,
+            data: products
         });
 
     } catch (error) {
         console.error("Error fetching products:", error);
         return res.status(500).json({
-            message: "Internal server error",
+            success: false,
+            message: "Internal server error"
         });
     }
 };
@@ -101,28 +202,69 @@ const getAllProducts = async (req, res) => {
 const updateProduct = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user?._id || req.user?.id;
 
-        const parsedData = updateProductSchema.parse(req.body);
-
-        const product = await ProductModel.findByIdAndUpdate(
-            id,
-            parsedData,
-            { new: true }
-        );
-        product.save()
-
-        if (!product) {
-            return res.status(404).json({ message: "Product not found" });
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
 
+        // ✅ Validate body
+        const parsedData = updateProductSchema.parse(req.body);
+
+        // ✅ Check Product Ownership
+        const existingProduct = await ProductModel.findOne({
+            _id: id,
+            userId: userId,
+            isActive: true
+        });
+
+        if (!existingProduct) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found"
+            });
+        }
+
+        // ===============================
+        // ✅ Prepare Update Object
+        // ===============================
+        const updateData = {
+            ...parsedData
+        };
+
+        // GST overwrite protection
+        if (parsedData.cgstPercent !== undefined)
+            updateData.cgstPercent = parsedData.cgstPercent;
+
+        if (parsedData.sgstPercent !== undefined)
+            updateData.sgstPercent = parsedData.sgstPercent;
+
+        if (parsedData.igstPercent !== undefined)
+            updateData.igstPercent = parsedData.igstPercent;
+
+        // ===============================
+        // ✅ Update Product
+        // ===============================
+        const updatedProduct = await ProductModel.findByIdAndUpdate(
+            id,
+            { $set: updateData },
+            { new: true, runValidators: true }
+        );
+
         return res.status(200).json({
+            success: true,
             message: "Product updated successfully",
-            product,
+            data: updatedProduct
         });
 
     } catch (error) {
+
         if (error instanceof ZodError) {
             return res.status(400).json({
+                success: false,
                 message: "Validation failed",
                 errors: error.issues.map((err) => ({
                     field: err.path.join("."),
@@ -132,7 +274,11 @@ const updateProduct = async (req, res) => {
         }
 
         console.error("Update Product Error:", error);
-        return res.status(500).json({ message: "Internal server error" });
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 };
 

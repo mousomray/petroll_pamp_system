@@ -246,3 +246,86 @@ export const updateSupplierSchema = zod.object({
     .boolean()
     .optional()
 });
+
+// ===============================
+// PURCHASE SCHEMA (frontend copy of backend purchase.schema.js)
+// ===============================
+
+const objectIdSchema = zod.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid ObjectId");
+
+export const purchaseItemSchema = zod.object({
+  productId: objectIdSchema,
+
+  quantity: zod.coerce
+    .number()
+    .positive("Quantity must be greater than 0"),
+
+  costPrice: zod.coerce
+    .number()
+    .positive("Cost price must be greater than 0")
+    .optional(),
+
+  discount: zod.coerce
+    .number()
+    .min(0, "Discount cannot be negative")
+    .max(100, "Discount cannot exceed 100")
+    .default(0),
+
+  tankId: zod
+    .string()
+    .regex(/^[a-fA-F0-9]{24}$/, { message: "Invalid tankId" })
+    .nullable()
+    .optional()
+});
+
+export const createPurchaseSchema = zod
+  .object({
+    supplierId: objectIdSchema,
+
+    invoiceNo: zod
+      .string()
+      .trim()
+      .min(1, "Invoice number is required"),
+
+    purchaseDate: zod.coerce.date(),
+
+    paymentStatus: zod.enum(["PAID", "DUE", "PARTIAL"]),
+
+    paymentMethod: zod
+      .enum(["CASH", "BANK", "UPI", "CARD"]) 
+      .default("CASH"),
+
+    paidAmount: zod.coerce
+      .number()
+      .min(0, "Paid amount cannot be negative")
+      .default(0),
+
+    items: zod
+      .array(purchaseItemSchema)
+      .min(1, "At least one product is required")
+  })
+  .superRefine((data, ctx) => {
+    if (data.paymentStatus === "DUE" && data.paidAmount !== 0) {
+      ctx.addIssue({
+        code: zod.ZodIssueCode.custom,
+        message: "For DUE status, paidAmount must be 0",
+        path: ["paidAmount"]
+      });
+    }
+
+    if (data.paymentStatus === "PARTIAL" && data.paidAmount === 0) {
+      ctx.addIssue({
+        code: zod.ZodIssueCode.custom,
+        message: "For PARTIAL status, paidAmount must be greater than 0",
+        path: ["paidAmount"]
+      });
+    }
+
+    if (data.paymentStatus === "PAID" && data.paidAmount === 0) {
+      ctx.addIssue({
+        code: zod.ZodIssueCode.custom,
+        message: "For PAID status, paidAmount must be greater than 0",
+        path: ["paidAmount"]
+      });
+    }
+  });
