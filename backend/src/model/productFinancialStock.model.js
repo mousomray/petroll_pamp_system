@@ -1,23 +1,9 @@
-const  mongoose =  require("mongoose");
+const mongoose = require("mongoose");
 
-const productFinancialStockSchema = new mongoose.Schema({
-
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        index: true
-    },
-
+const productStockItemSchema = new mongoose.Schema({
     productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Product",
-        required: true
-    },
-
-    financialYearId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "FinancialYear",
         required: true
     },
 
@@ -41,10 +27,29 @@ const productFinancialStockSchema = new mongoose.Schema({
         default: 0
     }
 
+}, { _id: false });
+
+const productFinancialStockSchema = new mongoose.Schema({
+
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        index: true
+    },
+
+    financialYear: {   // ✅ No master table
+        type: String,
+        required: true
+    },
+
+    products: [productStockItemSchema]
+
 }, { timestamps: true });
 
+// One financial year per user
 productFinancialStockSchema.index(
-    { userId: 1, productId: 1, financialYearId: 1 },
+    { userId: 1, financialYear: 1 },
     { unique: true }
 );
 
