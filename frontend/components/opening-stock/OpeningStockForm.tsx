@@ -231,16 +231,6 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                                 )}
                             />
                             <Column
-                                field="quantity"
-                                header="Current Quantity"
-                                body={(rowData) => (
-                                    <div className="flex items-center gap-2">
-                                        <i className="pi pi-box text-blue-500"></i>
-                                        <span className="font-medium">{rowData.quantity?.toLocaleString() || 0}</span>
-                                    </div>
-                                )}
-                            />
-                            <Column
                                 field="openingStock"
                                 header="Opening Stock"
                                 body={(rowData) => (
@@ -249,7 +239,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                                             value={rowData.openingStock}
                                             onValueChange={(e) => updateOpeningStockForProduct(rowData._id, e.value ?? null)}
                                             min={0}
-                                            className="w-32"
+                                            className="w-full"
                                         />
                                     </div>
                                 )}
