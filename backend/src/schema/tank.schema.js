@@ -1,5 +1,4 @@
-import { z } from "zod";
-import mongoose from "mongoose";
+const { z } = require("zod");
 
 const createTankSchema = z.object({
   tankName: z
@@ -7,13 +6,6 @@ const createTankSchema = z.object({
     .trim()
     .min(2, "Tank name must be at least 2 characters")
     .max(100, "Tank name too long"),
-
-  productId: z
-    .string()
-    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
-      message: "Invalid productId"
-    }),
-
   capacity: z
     .number({
       required_error: "Capacity is required"

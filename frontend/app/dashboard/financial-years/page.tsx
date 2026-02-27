@@ -10,7 +10,7 @@ import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { IconField } from "primereact/iconfield";
 import { InputIcon } from "primereact/inputicon";
-import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
+import { ConfirmDialog } from "primereact/confirmdialog";
 import { Button } from "primereact/button";
 import { Menu } from "primereact/menu";
 import { formatDate } from "@/helper/DateTime";

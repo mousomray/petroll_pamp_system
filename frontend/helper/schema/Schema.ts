@@ -1,5 +1,9 @@
 import { z as zod } from 'zod'
 
+// Product type constants
+const productTypes = ["FUEL", "ACCESSORY"] as const;
+const productUnits = ["LITRE", "PIECE", "KG", "BOX"] as const;
+
 export const LoginSchema = zod.object({
   email: zod
     .string()
@@ -78,51 +82,73 @@ export const updateUserSchema = zod.object({
 
 export const createProductSchema = zod.object({
   name: zod
-    .string()
-    .min(1, "Product name is required")
+    .string( "Product name is required" )
+    .min(1, "Product name cannot be empty")
     .trim(),
 
-  type: zod
-    .enum(["FUEL", "OIL", "TYRE", "ACCESSORY"], {
-      message: "Invalid product type"
-    }),
+  image: zod.string().optional(),
 
-    unit: zod
-    .enum(["LITRE", "PIECE", "KG", "BOX"], {
-      message: "Invalid unit"
-    }),
+  type: zod.enum(productTypes)
+  ,
+
+  unit: zod.enum(productUnits),
 
   costPrice: zod
-    .number()
+    .number("Cost price is required" )
     .nonnegative("Cost price must be >= 0"),
 
   sellingPrice: zod
-    .number()
+    .number("Selling price is required" )
     .nonnegative("Selling price must be >= 0"),
 
   minimumStockAlert: zod
     .number()
     .nonnegative("Minimum stock alert cannot be negative")
     .optional(),
+
+  cgstPercent: zod
+    .number()
+    .min(0, "CGST must be >= 0")
+    .max(100, "CGST cannot exceed 100")
+    .optional()
+    .default(0),
+
+  sgstPercent: zod
+    .number()
+    .min(0, "SGST must be >= 0")
+    .max(100, "SGST cannot exceed 100")
+    .optional()
+    .default(0),
+
+  tankIds: zod
+    .array(zod.string())
+    .optional(),
+
+  hsnCode: zod.string().optional()
+
+}).superRefine((data, ctx) => {
+  // Selling price validation
+  if (data.sellingPrice < data.costPrice) {
+    ctx.addIssue({
+      code: zod.ZodIssueCode.custom,
+      message: "Selling price must be greater than or equal to cost price",
+      path: ["sellingPrice"]
+    });
+  }
 });
 
 export const updateProductSchema = zod.object({
   name: zod
-    .string()
+    .string("Product name is required")
     .min(1, "Product name cannot be empty")
     .trim()
     .optional(),
 
-    unit: zod
-    .enum(["LITRE", "PIECE", "KG", "BOX"], {
-      message: "Invalid unit"
-    }),
+  image: zod.string().optional(),
 
-  type: zod
-    .enum(["FUEL", "OIL", "TYRE", "ACCESSORY"], {
-      message: "Invalid product type"
-    })
-    .optional(),
+  type: zod.enum(productTypes).optional(),
+
+  unit: zod.enum(productUnits).optional(),
 
   costPrice: zod
     .number()
@@ -139,9 +165,36 @@ export const updateProductSchema = zod.object({
     .nonnegative("Minimum stock alert cannot be negative")
     .optional(),
 
+  cgstPercent: zod
+    .number()
+    .min(0, "CGST must be >= 0")
+    .max(100, "CGST cannot exceed 100")
+    .optional(),
+
+  sgstPercent: zod
+    .number()
+    .min(0, "SGST must be >= 0")
+    .max(100, "SGST cannot exceed 100")
+    .optional(),
+
+  tankIds: zod
+    .array(zod.string())
+    .optional(),
+
+  hsnCode: zod.string().optional(),
+
   isActive: zod
     .boolean()
     .optional(),
+}).superRefine((data, ctx) => {
+  // Selling price validation if both prices are provided
+  if (data.sellingPrice !== undefined && data.costPrice !== undefined && data.sellingPrice < data.costPrice) {
+    ctx.addIssue({
+      code: zod.ZodIssueCode.custom,
+      message: "Selling price must be greater than or equal to cost price",
+      path: ["sellingPrice"]
+    });
+  }
 });
 
 export const createFinancialYearSchema = zod.object({

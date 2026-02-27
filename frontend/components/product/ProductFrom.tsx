@@ -7,6 +7,7 @@ import { z } from "zod";
 import { InputText } from "primereact/inputtext";
 import { InputNumber } from "primereact/inputnumber";
 import { Dropdown } from "primereact/dropdown";
+import { MultiSelect } from "primereact/multiselect";
 import { Checkbox } from "primereact/checkbox";
 import { Button } from "primereact/button";
 import { toast } from "react-toastify";
@@ -24,8 +25,6 @@ type ProductFormProps = {
 
 const productTypeOptions = [
     { label: "Fuel", value: "FUEL" },
-    { label: "Oil", value: "OIL" },
-    { label: "Tyre", value: "TYRE" },
     { label: "Accessory", value: "ACCESSORY" },
 ];
 
@@ -39,6 +38,7 @@ const unitOptions = [
 function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [tanks, setTanks] = useState<any[]>([]);
     const isEditMode = !!productId;
 
     const {
@@ -47,6 +47,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
         control,
         reset,
         setValue,
+        watch,
         formState: { errors },
     } = useForm<CreateProductFormData | UpdateProductFormData>({
         resolver: zodResolver(isEditMode ? updateProductSchema : createProductSchema),
@@ -58,6 +59,10 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                 costPrice: 0,
                 sellingPrice: 0,
                 minimumStockAlert: 0,
+                cgstPercent: 0,
+                sgstPercent: 0,
+                hsnCode: "",
+                tankIds: [],
                 isActive: true,
             }
             : {
@@ -67,15 +72,32 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                 costPrice: 0,
                 sellingPrice: 0,
                 minimumStockAlert: 0,
+                cgstPercent: 0,
+                sgstPercent: 0,
+                hsnCode: "",
+                tankIds: [],
             },
     });
 
-   
+    const productType = watch("type");
+
     useEffect(() => {
+        fetchTanks();
         if (productId) {
             fetchProductData();
         }
     }, [productId]);
+
+    const fetchTanks = async () => {
+        try {
+            const res = await axiosInstance.get("/api/tank/empty-dropdown-tanks", {
+                params: { page: 1, limit: 1000 },
+            });
+            setTanks(res.data.data || []);
+        } catch (error: any) {
+            console.error("Failed to fetch tanks:", error);
+        }
+    };
 
     const fetchProductData = async () => {
         try {
@@ -83,13 +105,18 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
             const res = await axiosInstance.get(`/api/product/single-product/${productId}`);
             const product = res.data.product;
 
-            
             setValue("name", product.name);
             setValue("type", product.type);
             setValue("unit", product.unit);
             setValue("costPrice", product.costPrice);
             setValue("sellingPrice", product.sellingPrice);
-            setValue("minimumStockAlert", product.minimumStockAlert);
+            setValue("minimumStockAlert", product.minimumStockAlert || 0);
+            setValue("cgstPercent", product.cgstPercent || 0);
+            setValue("sgstPercent", product.sgstPercent || 0);
+            setValue("hsnCode", product.hsnCode);
+            if (product.tankIds) {
+                setValue("tankIds", product.tankIds);
+            }
             if (isEditMode) {
                 setValue("isActive", product.isActive);
             }
@@ -134,11 +161,11 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
     return (
         <div className="px-6 py-4">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                {/* Product Information */}
+                {/* Basic Information */}
                 <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         <i className="pi pi-box text-blue-600"></i>
-                        Product Information
+                        Basic Information
                     </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -219,6 +246,48 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                             )}
                         </div>
 
+                        {/* Tanks (Only for FUEL type) */}
+                        {productType === "FUEL" && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-gray-700">
+                                    Tanks
+                                </label>
+                                <Controller
+                                    name="tankIds"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <MultiSelect
+                                            value={field.value || []}
+                                            onChange={(e) => field.onChange(e.value)}
+                                            options={tanks}
+                                            optionLabel="tankName"
+                                            optionValue="_id"
+                                            placeholder="Select tanks"
+                                            className="w-full"
+                                            display="chip"
+                                            maxSelectedLabels={2}
+                                        />
+                                    )}
+                                />
+                                {errors.tankIds && (
+                                    <small className="text-red-500 flex items-center gap-1">
+                                        <i className="pi pi-exclamation-circle"></i>
+                                        {errors.tankIds.message}
+                                    </small>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Pricing Information */}
+                <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <i className="pi pi-dollar text-green-600"></i>
+                        Pricing Information
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Cost Price */}
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-gray-700">
@@ -288,7 +357,17 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                                 </small>
                             )}
                         </div>
+                    </div>
+                </div>
 
+                {/* Stock Information */}
+                <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <i className="pi pi-database text-orange-600"></i>
+                        Stock Information
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Minimum Stock Alert */}
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-gray-700">
@@ -324,27 +403,134 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                             )}
                         </div>
                     </div>
-
-                    {/* Active Status - Only for Edit Mode */}
-                    {isEditMode && (
-                        <div className="flex items-center gap-2 mt-4">
-                            <Controller
-                                name="isActive"
-                                control={control}
-                                render={({ field }) => (
-                                    <Checkbox
-                                        inputId="isActive"
-                                        checked={field.value ?? false}
-                                        onChange={(e) => field.onChange(e.checked)}
-                                    />
-                                )}
-                            />
-                            <label htmlFor="isActive" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                                Active Product
-                            </label>
-                        </div>
-                    )}
                 </div>
+
+                {/* GST Configuration */}
+                <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <i className="pi pi-percentage text-purple-600"></i>
+                        GST Configuration
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* CGST Percent */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-gray-700">
+                                CGST %
+                            </label>
+                            <div className="p-inputgroup">
+                                <span className="p-inputgroup-addon bg-blue-50">
+                                    <i className="pi pi-percentage text-blue-600"></i>
+                                </span>
+                                <Controller
+                                    name="cgstPercent"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <InputNumber
+                                            value={field.value}
+                                            onValueChange={(e) => field.onChange(e.value)}
+                                            placeholder="Enter CGST percentage"
+                                            min={0}
+                                            max={100}
+                                            className="w-full"
+                                            useGrouping={false}
+                                            suffix=" %"
+                                            mode="decimal"
+                                            minFractionDigits={0}
+                                            maxFractionDigits={2}
+                                        />
+                                    )}
+                                />
+                            </div>
+                            {errors.cgstPercent && (
+                                <small className="text-red-500 flex items-center gap-1">
+                                    <i className="pi pi-exclamation-circle"></i>
+                                    {errors.cgstPercent.message}
+                                </small>
+                            )}
+                        </div>
+
+                        {/* SGST Percent */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-gray-700">
+                                SGST %
+                            </label>
+                            <div className="p-inputgroup">
+                                <span className="p-inputgroup-addon bg-blue-50">
+                                    <i className="pi pi-percentage text-blue-600"></i>
+                                </span>
+                                <Controller
+                                    name="sgstPercent"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <InputNumber
+                                            value={field.value}
+                                            onValueChange={(e) => field.onChange(e.value)}
+                                            placeholder="Enter SGST percentage"
+                                            min={0}
+                                            max={100}
+                                            className="w-full"
+                                            useGrouping={false}
+                                            suffix=" %"
+                                            mode="decimal"
+                                            minFractionDigits={0}
+                                            maxFractionDigits={2}
+                                        />
+                                    )}
+                                />
+                            </div>
+                            {errors.sgstPercent && (
+                                <small className="text-red-500 flex items-center gap-1">
+                                    <i className="pi pi-exclamation-circle"></i>
+                                    {errors.sgstPercent.message}
+                                </small>
+                            )}
+                        </div>
+
+                        {/* HSN Code */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-gray-700">
+                                HSN Code
+                            </label>
+                            <div className="p-inputgroup">
+                                <span className="p-inputgroup-addon bg-blue-50">
+                                    <i className="pi pi-code text-blue-600"></i>
+                                </span>
+                                <InputText
+                                    className="w-full"
+                                    {...register("hsnCode")}
+                                    placeholder="Enter HSN code"
+                                />
+                            </div>
+                            {errors.hsnCode && (
+                                <small className="text-red-500 flex items-center gap-1">
+                                    <i className="pi pi-exclamation-circle"></i>
+                                    {errors.hsnCode.message}
+                                </small>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Active Status - Only for Edit Mode */}
+                {isEditMode && (
+                    <div className="flex items-center gap-2 mt-4">
+                        <Controller
+                            name="isActive"
+                            control={control}
+                            render={({ field }) => (
+                                <Checkbox
+                                    inputId="isActive"
+                                    checked={field.value ?? false}
+                                    onChange={(e) => field.onChange(e.checked)}
+                                />
+                            )}
+                        />
+                        <label htmlFor="isActive" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                            Active Product
+                        </label>
+                    </div>
+                )}
 
                 {/* SUBMIT BUTTONS */}
                 <div className="flex gap-3 pt-4">

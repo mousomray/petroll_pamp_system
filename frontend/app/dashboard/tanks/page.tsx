@@ -76,7 +76,7 @@ function Page() {
         },
       });
 
-      setTankData(res.data.data || []);
+      setTankData(res.data.tanks || []);
       setPagination((prev) => ({
         ...prev,
         total: res.data.total || 0,
@@ -108,7 +108,10 @@ function Page() {
   const toggleTankStatus = async (rowData: any) => {
     try {
       const res = await axiosInstance.patch(
-        `/api/tank/toggle-status/${rowData._id}`
+        `/api/tank/toggle-status/${rowData._id}`,
+        {
+        isActive: !rowData.isActive
+      }
       );
       toast.success(res.data.message || "Status updated successfully");
       await fetchTankData();
@@ -138,7 +141,7 @@ function Page() {
   };
 
   /* ================= COLUMN TEMPLATES ================= */
-  const iconTemplate = (rowData: any) => {
+  const imageTemplate = (rowData: any) => {
     const getInitials = (name?: string) => {
       if (!name) return "?";
       const parts = name.trim().split(/\s+/);
@@ -186,40 +189,6 @@ function Page() {
       {rowData.isActive ? "Active" : "Inactive"}
     </span>
   );
-
-  const productTemplate = (rowData: any) => (
-    <span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
-      {rowData.product?.name || "N/A"}
-    </span>
-  );
-
-  const capacityTemplate = (rowData: any) => (
-    <div className="flex flex-col">
-      <span className="font-semibold">{rowData.capacity?.toLocaleString() || 0}</span>
-      <span className="text-xs text-gray-500">Liters</span>
-    </div>
-  );
-
-  const currentQuantityTemplate = (rowData: any) => {
-    const percentage = rowData.capacity > 0 
-      ? ((rowData.currentQuantity / rowData.capacity) * 100).toFixed(1) 
-      : 0;
-    
-    const getColorClass = () => {
-      if (Number(percentage) >= 70) return "text-green-600";
-      if (Number(percentage) >= 30) return "text-yellow-600";
-      return "text-red-600";
-    };
-
-    return (
-      <div className="flex flex-col">
-        <span className="font-semibold">{rowData.currentQuantity?.toLocaleString() || 0}</span>
-        <span className={`text-xs font-medium ${getColorClass()}`}>
-          {percentage}% Full
-        </span>
-      </div>
-    );
-  };
 
   const actionTemplate = (rowData: any) => (
     <div onClick={(e) => e.stopPropagation()} className="flex">
@@ -337,11 +306,10 @@ function Page() {
           responsiveLayout="scroll"
           emptyMessage={EmptyState}
         >
-          <Column header="Icon" body={iconTemplate} />
+          <Column header="Avatar" body={imageTemplate} />
           <Column field="tankName" header="Tank Name" sortable />
-          <Column header="Product" body={productTemplate} />
-          <Column header="Capacity" body={capacityTemplate} sortable />
-          <Column header="Current Quantity" body={currentQuantityTemplate} sortable />
+          <Column field="capacity" header="Capacity" body={(row: any) => `${row.capacity?.toLocaleString() || 0} L`} />
+          <Column field="currentQuantity" header="Current Qty" body={(row: any) => `${row.currentQuantity?.toLocaleString() || 0} L`} />
           <Column header="Status" body={statusTemplate} />
           <Column header="Created" body={(row: any) => formatDate(row.createdAt)} />
           <Column header="Actions" body={actionTemplate} />

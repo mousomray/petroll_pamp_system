@@ -6,22 +6,39 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { InputText } from "primereact/inputtext";
 import { InputNumber } from "primereact/inputnumber";
-import { Dropdown } from "primereact/dropdown";
 import { Checkbox } from "primereact/checkbox";
 import { Button } from "primereact/button";
 import { toast } from "react-toastify";
 import axiosInstance from "@/service/axios.service";
 
 const createTankSchema = z.object({
-    tankName: z.string().trim().min(2, "Tank name must be at least 2 characters").max(100, "Tank name too long"),
-    productId: z.string().min(1, "Product is required"),
-    capacity: z.number().positive("Capacity must be greater than 0"),
+    tankName: z
+        .string("Tank name is required")
+        .min(1, "Tank name cannot be empty")
+        .trim()
+        .toUpperCase(),
+    
+    capacity: z
+        .number("Capacity is required")
+        .nonnegative("Capacity must be >= 0"),
 });
 
 const updateTankSchema = z.object({
-    tankName: z.string().trim().min(2, "Tank name must be at least 2 characters").max(100, "Tank name too long").optional(),
-    capacity: z.number().positive("Capacity must be greater than 0").optional(),
-    isActive: z.boolean().optional(),
+    tankName: z
+        .string("Tank name is required")
+        .min(1, "Tank name cannot be empty")
+        .trim()
+        .toUpperCase()
+        .optional(),
+    
+    capacity: z
+        .number()
+        .nonnegative("Capacity must be >= 0")
+        .optional(),
+    
+    isActive: z
+        .boolean()
+        .optional(),
 });
 
 type CreateTankFormData = z.infer<typeof createTankSchema>;
@@ -36,7 +53,6 @@ type TankFormProps = {
 function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [products, setProducts] = useState<any[]>([]);
     const isEditMode = !!tankId;
 
     const {
@@ -56,28 +72,15 @@ function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
             }
             : {
                 tankName: "",
-                productId: "",
                 capacity: 0,
             },
     });
 
     useEffect(() => {
-        fetchProducts();
         if (tankId) {
             fetchTankData();
         }
     }, [tankId]);
-
-    const fetchProducts = async () => {
-        try {
-            const res = await axiosInstance.get("/api/product/dropdown-products", {
-                params: { page: 1, limit: 1000 },
-            });
-            setProducts(res.data.products || []);
-        } catch (error: any) {
-            toast.error("Failed to fetch products");
-        }
-    };
 
     const fetchTankData = async () => {
         try {
@@ -128,11 +131,6 @@ function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
         );
     }
 
-    const productOptions = products.map((product) => ({
-        label: `${product.name} (${product.unit})`,
-        value: product._id,
-    }));
-
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -152,37 +150,10 @@ function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
                     )}
                 </div>
 
-                {/* Product Dropdown (Only for Create) */}
-                {!isEditMode && (
-                    <div className="flex flex-col gap-2">
-                        <label htmlFor="productId" className="font-medium text-sm">
-                            Product <span className="text-red-500">*</span>
-                        </label>
-                        <Controller
-                            name="productId"
-                            control={control}
-                            render={({ field }) => (
-                                <Dropdown
-                                    id="productId"
-                                    value={field.value}
-                                    onChange={(e) => field.onChange(e.value)}
-                                    options={productOptions}
-                                    placeholder="Select a product"
-                                    filter
-                                    className={`w-full ${(errors as any).productId ? "p-invalid" : ""}`}
-                                />
-                            )}
-                        />
-                        {(errors as any).productId && (
-                            <small className="text-red-500">{(errors as any).productId.message}</small>
-                        )}
-                    </div>
-                )}
-
                 {/* Capacity */}
                 <div className="flex flex-col gap-2">
                     <label htmlFor="capacity" className="font-medium text-sm">
-                        Capacity <span className="text-red-500">*</span>
+                        Capacity (Liters) <span className="text-red-500">*</span>
                     </label>
                     <Controller
                         name="capacity"
@@ -193,8 +164,9 @@ function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
                                 value={field.value}
                                 onValueChange={(e) => field.onChange(e.value)}
                                 placeholder="Enter capacity"
-                                min={1}
+                                min={0}
                                 className={`w-full ${errors.capacity ? "p-invalid" : ""}`}
+                                useGrouping={false}
                             />
                         )}
                     />
@@ -202,6 +174,9 @@ function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
                         <small className="text-red-500">{errors.capacity.message}</small>
                     )}
                 </div>
+
+                {/* Current Quantity */}
+                
 
                 {/* IsActive (Only for Edit) */}
                 {isEditMode && (

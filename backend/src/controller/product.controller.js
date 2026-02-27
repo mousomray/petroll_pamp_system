@@ -9,11 +9,7 @@ const uploadSingleImage = require("../helper/upload.js");
 
 const createProduct = async (req, res) => {
     try {
-        // ===============================
-        // ✅ Validate Body
-        // ===============================
         const parsedData = createProductSchema.parse(req.body);
-
         const userId = req.user?._id || req.user?.id;
 
         if (!userId) {
@@ -23,9 +19,6 @@ const createProduct = async (req, res) => {
             });
         }
 
-        // ===============================
-        // ✅ Check User & Role
-        // ===============================
         const user = await UserModel.findById(userId);
 
         if (!user) {
@@ -42,37 +35,26 @@ const createProduct = async (req, res) => {
             });
         }
 
-        // ===============================
-        // 🖼 Upload Image (Optional)
-        // ===============================
         let imageUrl = null;
 
         if (req.files?.image?.length > 0) {
             imageUrl = await uploadSingleImage(req.files.image[0]);
         }
 
-        // ===============================
-        // 💾 Create Product
-        // ===============================
+
+        let tankObjectIds = [];
+
+        if (parsedData.type === "FUEL") {
+            tankObjectIds = parsedData.tankIds.map(
+                (id) => new mongoose.Types.ObjectId(id)
+            );
+        }
+
         const product = await ProductModel.create({
-            name: parsedData.name,
+            ...parsedData,
             image: imageUrl,
-            type: parsedData.type,
-            unit: parsedData.unit,
-
-            costPrice: parsedData.costPrice,
-            sellingPrice: parsedData.sellingPrice,
-
-            quantity: parsedData.quantity || 0,
-            minimumStockAlert: parsedData.minimumStockAlert || 0,
-
-            cgstPercent: parsedData.cgstPercent || 0,
-            sgstPercent: parsedData.sgstPercent || 0,
-            igstPercent: parsedData.igstPercent || 0,
-
-            hsnCode: parsedData.hsnCode || null,
-
-            userId: user._id
+            tankIds: tankObjectIds,
+            userId
         });
 
         return res.status(201).json({
@@ -82,10 +64,8 @@ const createProduct = async (req, res) => {
         });
 
     } catch (error) {
+        console.log(error)
 
-        // ===============================
-        // ❌ Zod Validation Error
-        // ===============================
         if (error instanceof ZodError) {
             return res.status(400).json({
                 success: false,
@@ -97,7 +77,12 @@ const createProduct = async (req, res) => {
             });
         }
 
-        console.error("Create Product Error:", error);
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: "Product with this name already exists",
+            });
+        }
 
         return res.status(500).json({
             success: false,
@@ -105,7 +90,6 @@ const createProduct = async (req, res) => {
         });
     }
 };
-
 
 const getAllProducts = async (req, res) => {
     try {
@@ -121,7 +105,6 @@ const getAllProducts = async (req, res) => {
 
         const matchStage = {
             userId: new mongoose.Types.ObjectId(userId),
-            isActive: true
         };
 
         if (search) {
@@ -141,10 +124,10 @@ const getAllProducts = async (req, res) => {
                     sellingPrice: 1,
                     quantity: 1,
                     minimumStockAlert: 1,
+                    isActive: 1, // ✅ PASS ACTIVE STATUS
 
                     cgstPercent: { $ifNull: ["$cgstPercent", 0] },
                     sgstPercent: { $ifNull: ["$sgstPercent", 0] },
-                    igstPercent: { $ifNull: ["$igstPercent", 0] },
 
                     hsnCode: 1,
                     createdAt: 1,
@@ -152,8 +135,7 @@ const getAllProducts = async (req, res) => {
                     totalGstPercent: {
                         $add: [
                             { $ifNull: ["$cgstPercent", 0] },
-                            { $ifNull: ["$sgstPercent", 0] },
-                            { $ifNull: ["$igstPercent", 0] }
+                            { $ifNull: ["$sgstPercent", 0] }
                         ]
                     }
                 }
@@ -186,7 +168,7 @@ const getAllProducts = async (req, res) => {
             limit,
             totalPages,
             totalProducts,
-            data: products
+            products
         });
 
     } catch (error) {
@@ -197,6 +179,7 @@ const getAllProducts = async (req, res) => {
         });
     }
 };
+
 
 
 const updateProduct = async (req, res) => {
@@ -214,11 +197,27 @@ const updateProduct = async (req, res) => {
         // ✅ Validate body
         const parsedData = updateProductSchema.parse(req.body);
 
+        // ✅ Check User
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // ✅ Role check
+        if (user.role !== "ADMIN") {
+            return res.status(403).json({
+                success: false,
+                message: "Only ADMIN can update product"
+            });
+        }
+
         // ✅ Check Product Ownership
         const existingProduct = await ProductModel.findOne({
             _id: id,
-            userId: userId,
-            isActive: true
+            userId: userId
         });
 
         if (!existingProduct) {
@@ -228,26 +227,54 @@ const updateProduct = async (req, res) => {
             });
         }
 
-        // ===============================
-        // ✅ Prepare Update Object
-        // ===============================
+        /* =====================================================
+           🔥 DUPLICATE NAME CHECK (IMPORTANT)
+        ====================================================== */
+
+        if (parsedData.name) {
+            const duplicate = await ProductModel.findOne({
+                name: { $regex: `^${parsedData.name}$`, $options: "i" },
+                userId: userId,
+                _id: { $ne: id } // exclude current product
+            });
+
+            if (duplicate) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Validation failed",
+                    errors: [
+                        {
+                            field: "name",
+                            message: "Product name already exists"
+                        }
+                    ]
+                });
+            }
+        }
+
+        /* =====================================================
+           🖼 Optional Image Update
+        ====================================================== */
+
+        let imageUrl = existingProduct.image;
+
+        if (req.files?.image?.length > 0) {
+            imageUrl = await uploadSingleImage(req.files.image[0]);
+        }
+
+        /* =====================================================
+           ✅ Prepare Update Data
+        ====================================================== */
+
         const updateData = {
-            ...parsedData
+            ...parsedData,
+            image: imageUrl
         };
 
-        // GST overwrite protection
-        if (parsedData.cgstPercent !== undefined)
-            updateData.cgstPercent = parsedData.cgstPercent;
+        /* =====================================================
+           ✅ Update Product
+        ====================================================== */
 
-        if (parsedData.sgstPercent !== undefined)
-            updateData.sgstPercent = parsedData.sgstPercent;
-
-        if (parsedData.igstPercent !== undefined)
-            updateData.igstPercent = parsedData.igstPercent;
-
-        // ===============================
-        // ✅ Update Product
-        // ===============================
         const updatedProduct = await ProductModel.findByIdAndUpdate(
             id,
             { $set: updateData },
@@ -273,7 +300,12 @@ const updateProduct = async (req, res) => {
             });
         }
 
-        console.error("Update Product Error:", error);
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: "Product with this name already exists",
+            });
+        }
 
         return res.status(500).json({
             success: false,
@@ -281,7 +313,6 @@ const updateProduct = async (req, res) => {
         });
     }
 };
-
 const deleteProduct = async (req, res) => {
     try {
         const { id } = req.params;
@@ -332,6 +363,28 @@ const getSingleProduct = async (req, res) => {
     }
 };
 
+const activeStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isActive } = req.body;
+        if (!id) {
+            return res.status(500).json({ message: "id is not found" });
+        }
+        const updateProduct = await ProductModel.findByIdAndUpdate(id, {
+            isActive: isActive
+        })
+        return res.json({
+            success: true,
+            message: "Status is updated"
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        })
+    }
+}
+
 const dropDownProducts = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -380,5 +433,6 @@ module.exports = {
     updateProduct,
     deleteProduct,
     dropDownProducts,
-    allProductDropDownProducts
+    allProductDropDownProducts,
+    activeStatus
 };

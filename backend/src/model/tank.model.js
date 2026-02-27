@@ -12,16 +12,10 @@ const tankSchema = new mongoose.Schema(
     tankName: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      uppercase: true,
+      unique: true,
     },
-
-    productId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-      index: true
-    },
-
     capacity: {
       type: Number,
       required: true,

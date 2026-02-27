@@ -47,10 +47,10 @@ function Page() {
   const [searchInput, setSearchInput] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
 
-  /* ================= FETCH USERS (server-side pagination) ================= */
+  /* ================= FETCH PRODUCTS (server-side pagination) ================= */
   // fetch when page, rows or debounced search change
   useEffect(() => {
-    userDataGet();
+    productDataGet();
   }, [pagination.page, pagination.rows, debouncedSearch]);
 
   // debounce searchInput -> debouncedSearch
@@ -64,7 +64,7 @@ function Page() {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [debouncedSearch]);
 
-  const userDataGet = async () => {
+  const productDataGet = async () => {
     try {
       setLoading(true);
       const res = await axiosInstance.get("/api/product/all-products", {
@@ -92,7 +92,7 @@ function Page() {
   };
 
   /* ================= ACTIONS ================= */
-  const handleAddUser = () => {
+  const handleAddProduct = () => {
     setEditProductId(null);
     setSelectedProduct(null);
     setVisible(true);
@@ -104,13 +104,15 @@ function Page() {
     setVisible(true);
   };
 
-  const toggleUserStatus = async (rowData: any) => {
+  const toggleProductStatus = async (rowData: any) => {
     try {
       const res = await axiosInstance.patch(
-        `/register/toggle-status/${rowData._id}`
+        `/api/product/toggle-status/${rowData._id}`, {
+        isActive: !rowData.isActive
+      }
       );
       toast.success(res.data.message || "Status updated successfully");
-      await userDataGet();
+      await productDataGet();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Status update failed");
     }
@@ -125,10 +127,10 @@ function Page() {
       accept: async () => {
         try {
           const res = await axiosInstance.delete(
-            `api/product/delete-product/${rowData._id}`
+            `/api/product/delete-product/${rowData._id}`
           );
-          toast.success(res.data.message || "User deleted successfully");
-          await userDataGet();
+          toast.success(res.data.message || "Product deleted successfully");
+          await productDataGet();
         } catch (err: any) {
           toast.error(err?.response?.data?.message || "Delete failed");
         }
@@ -176,11 +178,10 @@ function Page() {
 
   const statusTemplate = (rowData: any) => (
     <span
-      className={`px-2 py-1 rounded-full text-xs font-medium ${
-        rowData.isActive
+      className={`px-2 py-1 rounded-full text-xs font-medium ${rowData.isActive
           ? "bg-green-100 text-green-800"
           : "bg-red-100 text-red-800"
-      }`}
+        }`}
     >
       {rowData.isActive ? "Active" : "Inactive"}
     </span>
@@ -222,7 +223,7 @@ function Page() {
       label: selectedProduct?.isActive ? "Deactivate" : "Activate",
       icon: selectedProduct?.isActive ? "pi pi-times-circle" : "pi pi-check-circle",
       command: () => {
-        if (selectedProduct) toggleUserStatus(selectedProduct);
+        if (selectedProduct) toggleProductStatus(selectedProduct);
       },
     },
     {
@@ -254,14 +255,14 @@ function Page() {
         <Button
           label="Add Product"
           icon="pi pi-plus"
-          onClick={handleAddUser}
+          onClick={handleAddProduct}
           className="bg-white text-primary border-0 hover:bg-gray-100"
         />
       </div>
     </div>
   );
 
-    const EditProductHeader = (
+  const EditProductHeader = (
     <div className="flex items-center gap-3 bg-gradient-to-r from-amber-500 to-orange-500  mb-2 p-3 rounded-t-lg">
       <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
         <i className="pi pi-box text-white text-2xl"></i>
@@ -273,7 +274,7 @@ function Page() {
     </div>
   );
 
-   const AddProductHeader = (
+  const AddProductHeader = (
     <div className="flex items-center gap-3 bg-gradient-to-r from-blue-500 to-indigo-600  mb-2 p-3 rounded-t-lg">
       <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
         <i className="pi pi-box text-white text-2xl"></i>
@@ -314,6 +315,9 @@ function Page() {
           <Column field="unit" header="Unit" />
           <Column field="costPrice" header="Cost Price" body={(row: any) => `$${row.costPrice?.toFixed(2) || '0.00'}`} />
           <Column field="sellingPrice" header="Selling Price" body={(row: any) => `$${row.sellingPrice?.toFixed(2) || '0.00'}`} />
+          <Column field="cgstPercent" header="CGST %" body={(row: any) => `${row.cgstPercent || 0}%`} />
+          <Column field="sgstPercent" header="SGST %" body={(row: any) => `${row.sgstPercent || 0}%`} />
+          <Column field="hsnCode" header="HSN Code" />
           <Column field="minimumStockAlert" header="Min Stock Alert" />
           <Column header="Status" body={statusTemplate} />
           <Column header="Created" body={(row: any) => formatDate(row.createdAt)} />
@@ -323,10 +327,10 @@ function Page() {
         {/* popup menu (single instance) */}
         <Menu model={menuModel} popup ref={menu} />
 
-        <Dialog 
-          header={editProductId ? EditProductHeader : AddProductHeader} 
-          visible={visible} 
-          style={{ width: "50vw" }} 
+        <Dialog
+          header={editProductId ? EditProductHeader : AddProductHeader}
+          visible={visible}
+          style={{ width: "50vw" }}
           onHide={() => {
             setVisible(false);
             setEditProductId(null);
@@ -341,7 +345,7 @@ function Page() {
               setSelectedProduct(null);
             }}
             onSuccess={() => {
-              userDataGet();
+              productDataGet();
               setVisible(false);
               setEditProductId(null);
               setSelectedProduct(null);
