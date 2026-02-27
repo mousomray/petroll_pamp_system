@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { createProductFinancialStock, getAllProductFinancialStock, getSingleProductFinancialStock, updateProductFinancialStock, deleteProductFinancialStock
+const { createProductFinancialStock, getAllProductFinancialStock, getSingleProductFinancialStock, updateProductFinancialStock, deleteProductFinancialStock,getAllCurrentStock,carryForwardFinancialYear
 } = require("../controller/productFinancialStock.controller.js");
 
 const verifyJwt = require("../middleware/verifiyUser.js");
@@ -12,5 +12,6 @@ router.get("/all-financial-stocks", verifyJwt, authorize("ADMIN"), getAllProduct
 router.get("/single-financial-stocks/:stockId", verifyJwt, authorize("ADMIN"), getSingleProductFinancialStock);
 router.put("/update-financial-stock/:id", verifyJwt, authorize("ADMIN"), updateProductFinancialStock);
 router.delete("/delete-financial-stock/:stockId", verifyJwt, authorize("ADMIN"), deleteProductFinancialStock);
-
+router.get("/current-stocks", verifyJwt, authorize("ADMIN"), getAllCurrentStock);
+router.post("/carry-forward-financial-year", verifyJwt, authorize("ADMIN"), carryForwardFinancialYear);
 module.exports = router;

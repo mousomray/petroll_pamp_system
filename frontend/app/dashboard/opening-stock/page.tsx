@@ -47,12 +47,15 @@ function Page() {
     // search input (immediate) and debouncedSearch (sent to server)
     const [searchInput, setSearchInput] = useState<string>("");
     const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+    const [financialYearInput, setFinancialYearInput] = useState<string>("");
+    const [debouncedFinancialYear, setDebouncedFinancialYear] = useState<string>("");
+    const [carryLoading, setCarryLoading] = useState(false);
 
     /* ================= FETCH STOCKS (server-side pagination) ================= */
-    // fetch when page, rows or debounced search change
+    // fetch when page, rows, debounced search or financial year change
     useEffect(() => {
         fetchStockData();
-    }, [pagination.page, pagination.rows, debouncedSearch]);
+    }, [pagination.page, pagination.rows, debouncedSearch, debouncedFinancialYear]);
 
     // debounce searchInput -> debouncedSearch
     useEffect(() => {
@@ -60,10 +63,16 @@ function Page() {
         return () => clearTimeout(t);
     }, [searchInput]);
 
-    // when debounced search changes reset to first page
+    // debounce financialYearInput -> debouncedFinancialYear
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedFinancialYear(financialYearInput.trim()), 500);
+        return () => clearTimeout(t);
+    }, [financialYearInput]);
+
+    // when debounced search or financial year changes reset to first page
     useEffect(() => {
         setPagination((prev) => ({ ...prev, page: 1 }));
-    }, [debouncedSearch]);
+    }, [debouncedSearch, debouncedFinancialYear]);
 
     const fetchStockData = async () => {
         try {
@@ -73,6 +82,7 @@ function Page() {
                     page: pagination.page,
                     limit: pagination.rows,
                     ...(debouncedSearch ? { search: debouncedSearch } : {}),
+                    ...(debouncedFinancialYear ? { financialYear: debouncedFinancialYear } : {}),
                 },
             });
 
@@ -107,7 +117,7 @@ function Page() {
 
     const confirmDelete = (rowData: any) => {
         confirmDialog({
-            message: `Are you sure you want to delete this opening stock entry for "${rowData.product?.name}"?`,
+            message: `Are you sure you want to delete this opening stock entry for "${rowData.product?.name || rowData.productName || "item"}"?`,
             header: "Delete Confirmation",
             icon: "pi pi-exclamation-triangle",
             acceptClassName: "p-button-danger",
@@ -125,43 +135,74 @@ function Page() {
         });
     };
 
+    const carryForward = async () => {
+        try {
+            setCarryLoading(true);
+            const res = await axiosInstance.post("/api/financial-stock/carry-forward-financial-year", {
+                financialYear: debouncedFinancialYear || undefined,
+            });
+            toast.success(res.data.message || "Carry forward completed successfully");
+            await fetchStockData();
+        } catch (err: any) {
+            if (axios.isAxiosError(err)) {
+                toast.error(err.response?.data?.message || "Carry forward failed");
+            } else {
+                toast.error("Unexpected error occurred during carry forward");
+            }
+        } finally {
+            setCarryLoading(false);
+        }
+    };
+
+    const confirmCarryForward = () => {
+        confirmDialog({
+            message:
+                "This will create the new year's opening stock based on the current year's closing stock. Continue?",
+            header: "Carry Forward Financial Year",
+            icon: "pi pi-exchange",
+            acceptClassName: "p-button-warning",
+            accept: async () => {
+                await carryForward();
+            },
+        });
+    };
+
     /* ================= COLUMN TEMPLATES ================= */
     const productTemplate = (rowData: any) => (
         <div className="flex flex-col">
-            <span className="font-semibold">{rowData.product?.name || "N/A"}</span>
-            <span className="text-xs text-gray-500">{rowData.product?.type || ""}</span>
+            <span className="font-semibold">{rowData.product?.name || rowData.productName || "N/A"}</span>
+            <span className="text-xs text-gray-500">{rowData.product?.type || rowData.productType || ""}</span>
         </div>
     );
 
     const financialYearTemplate = (rowData: any) => (
         <div className="flex flex-col">
-            <span className="font-semibold">{rowData.financialYear?.name || "N/A"}</span>
+            <span className="font-semibold">{typeof rowData.financialYear === 'string' ? rowData.financialYear : rowData.financialYear?.name || "N/A"}</span>
             <span className="text-xs text-gray-500">
-                {rowData.financialYear?.isActive ? (
-                    <span className="text-green-600">Active</span>
-                ) : (
-                    <span className="text-red-600">Inactive</span>
-                )}
+                {typeof rowData.financialYear === 'object' ? (
+                    rowData.financialYear?.isActive ? (
+                        <span className="text-green-600">Active</span>
+                    ) : (
+                        <span className="text-red-600">Inactive</span>
+                    )
+                ) : null}
             </span>
         </div>
     );
 
-    const stockTemplate = (rowData: any, field: string) => (
-        <span className="font-medium">{rowData[field]?.toLocaleString() || 0}</span>
-    );
+    const stockTemplate = (rowData: any, field: string) => {
+        const val = rowData[field] ?? 0;
+        const num = Number(val) || 0;
+        return <span className="font-medium">{num.toLocaleString()}</span>;
+    };
 
     const unitTemplate = (rowData: any) => (
         <span className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs font-medium">
-            {rowData.product?.unit || "N/A"}
+            {rowData.product?.unit || rowData.unit || "N/A"}
         </span>
     );
 
-    const priceTemplate = (rowData: any) => (
-        <div className="flex flex-col">
-            <span className="text-xs text-gray-500">Cost: ₹{rowData.product?.costPrice?.toFixed(2) || 0}</span>
-            <span className="text-xs text-gray-500">Sell: ₹{rowData.product?.sellingPrice?.toFixed(2) || 0}</span>
-        </div>
-    );
+    
 
     const actionTemplate = (rowData: any) => (
         <div onClick={(e) => e.stopPropagation()} className="flex">
@@ -198,6 +239,9 @@ function Page() {
         },
     ];
 
+    // disable Add button when there is already data in the table
+    const isAddDisabled = Array.isArray(stockData) && stockData.length > 0;
+
     const header = (
         <div className="flex justify-between items-center bg-primary p-3 rounded-lg">
             <div>
@@ -215,11 +259,28 @@ function Page() {
                         className="p-inputtext-sm"
                     />
                 </IconField>
+                <IconField iconPosition="left">
+                    <InputIcon className="pi pi-calendar" />
+                    <InputText
+                        value={financialYearInput}
+                        onChange={(e) => setFinancialYearInput(e.target.value)}
+                        placeholder="Financial Year (e.g., 2026-2027)"
+                        className="p-inputtext-sm"
+                    />
+                </IconField>
+                <Button
+                    label="Carry Forward Year"
+                    icon="pi pi-forward"
+                    onClick={confirmCarryForward}
+                    className="bg-white text-primary border-0 hover:bg-gray-100"
+                    loading={carryLoading}
+                />
                 <Button
                     label="Add Opening Stock"
                     icon="pi pi-plus"
                     onClick={handleAddStock}
                     className="bg-white text-primary border-0 hover:bg-gray-100"
+                    disabled={isAddDisabled}
                 />
             </div>
         </div>
@@ -300,7 +361,7 @@ function Page() {
                         sortable
                         style={{ minWidth: "130px" }}
                     />
-                    <Column header="Pricing" body={priceTemplate} style={{ minWidth: "120px" }} />
+                    
                     <Column header="Created" body={(row: any) => formatDate(row.createdAt)} style={{ minWidth: "110px" }} />
                     <Column header="Actions" body={actionTemplate} style={{ minWidth: "90px" }} />
                 </DataTable>

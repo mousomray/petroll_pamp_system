@@ -11,10 +11,10 @@ import { Badge } from "primereact/badge";
 type SidebarProps = {
   role: "ADMIN" | "MANAGER" | "CASHIER";
   user: {
-        name: string;
-        image: string;
-        email: string;
-    };
+    name: string;
+    image: string;
+    email: string;
+  };
 };
 
 type MenuItem = {
@@ -36,7 +36,7 @@ type Section = {
 
 // ---------------- COMPONENT ----------------
 
-const Sidebar: React.FC<SidebarProps> = ({ role,user }) => {
+const Sidebar: React.FC<SidebarProps> = ({ role, user }) => {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
@@ -119,14 +119,14 @@ const Sidebar: React.FC<SidebarProps> = ({ role,user }) => {
               icon: "pi-truck",
             },
             {
-              href:"/dashboard/tanks",
-              label:"Tanks",
-              icon:"pi-database"
+              href: "/dashboard/tanks",
+              label: "Tanks",
+              icon: "pi-database"
             },
             {
-              href:"/dashboard/purchases",
-              label:"Purchases",
-              icon:"pi-shopping-cart"
+              href: "/dashboard/purchases",
+              label: "Purchases",
+              icon: "pi-shopping-cart"
             }
           ],
         },
@@ -139,26 +139,15 @@ const Sidebar: React.FC<SidebarProps> = ({ role,user }) => {
               label: "Opening Stock",
               icon: "pi-chart-bar",
             },
+            {
+              href: "/dashboard/current-stock",
+              label: "Current Stock",
+              icon: "pi-chart-bar",
+            }
           ],
         },
       ],
     },
-    {
-    title: "Accounts",
-    items: [
-      {
-        label: "Financial Year",
-        icon: "pi-calendar",
-        children: [
-          {
-            href: "/dashboard/financial-years",
-            label: "All Financial Years",
-            icon: "pi-list",
-          }
-        ],
-      },
-    ],
-  },
   ];
 
   // ---------------- MANAGER ----------------
@@ -233,7 +222,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role,user }) => {
             <Avatar image={user.image} shape="circle" />
             <div>
               <div style={{ fontWeight: 600 }}>
-                {user.name} 
+                {user.name}
               </div>
               <div style={{ fontSize: 12, opacity: 0.6 }}>
                 {user.email}
@@ -308,8 +297,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role,user }) => {
                           {hasChildren && (
                             <i
                               className={`pi ${isOpen
-                                  ? "pi-chevron-down"
-                                  : "pi-chevron-right"
+                                ? "pi-chevron-down"
+                                : "pi-chevron-right"
                                 }`}
                             />
                           )}

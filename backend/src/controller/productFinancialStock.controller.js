@@ -2,52 +2,79 @@ const mongoose = require("mongoose");
 const ProductFinancialStock = require("../model/productFinancialStock.model");
 const CurrentStockModel = require("../model/currentStock.model");
 const { createProductFinancialStockSchema, updateProductFinancialStockSchema } = require("../schema/productFinancialStock");
+const Product = require("../model/product.model");
+
+function getFinancialYear() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
+
+    return month >= 4
+        ? `${year}-${year + 1}`
+        : `${year - 1}-${year}`;
+}
 
 const createProductFinancialStock = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
-    try {
-        const parsed = createProductFinancialStockSchema.parse(req.body);
-        const userId = req.user._id;
-        const { productId, financialYearId, openingStock = 0 } = parsed;
-        if (openingStock < 0) {
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(400).json({
-                success: false,
-                message: "Opening stock cannot be negative"
-            });
-        }
-        const existing = await ProductFinancialStock.findOne({
-            userId,
-            productId,
-            financialYearId
-        }).session(session);
-        if (existing) {
-            await session.abortTransaction();
-            session.endSession();
 
-            return res.status(400).json({
-                success: false,
-                message: "Stock already exists for this product and financial year"
-            });
+    try {
+        const userId = req.user._id;
+        const { products } = req.body;
+        // products = [{ productId, openingStock }]
+
+        if (!products || !Array.isArray(products) || products.length === 0) {
+            throw new Error("Products array is required");
         }
+
+        const financialYear = getFinancialYear();
+
+        // Check if financial year stock already created for this user
+        const existingFY = await ProductFinancialStock.findOne({
+            userId,
+            financialYear
+        }).session(session);
+
+        if (existingFY) {
+            throw new Error("Opening stock already created for this financial year");
+        }
+
+        const stockProducts = [];
+
+        for (const item of products) {
+
+            if (item.openingStock < 0) {
+                throw new Error("Opening stock cannot be negative");
+            }
+
+            const product = await Product.findById(item.productId).session(session);
+            if (!product) {
+                throw new Error("Product not found");
+            }
+
+            stockProducts.push({
+                productId: item.productId,
+                openingStock: item.openingStock,
+                totalPurchase: 0,
+                totalSale: 0,
+                closingStock: item.openingStock
+            });
+
+            // Update Current Stock table
+            await CurrentStockModel.updateOne(
+                { userId, productId: item.productId },
+                { $set: { quantity: item.openingStock } },
+                { upsert: true, session }
+            );
+        }
+
         const stock = await ProductFinancialStock.create(
             [{
                 userId,
-                productId,
-                financialYearId,
-                openingStock,
-                totalPurchase: 0,
-                totalSale: 0,
-                closingStock: openingStock
+                financialYear,
+                products: stockProducts
             }],
             { session }
-        );
-        await CurrentStockModel.updateOne(
-            { userId, productId },
-            { $set: { quantity: openingStock } },
-            { upsert: true, session }
         );
 
         await session.commitTransaction();
@@ -63,19 +90,13 @@ const createProductFinancialStock = async (req, res) => {
         await session.abortTransaction();
         session.endSession();
 
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: "Stock already exists for this product and financial year"
-            });
-        }
-
-        return res.status(500).json({
+        return res.status(400).json({
             success: false,
             message: error.message
         });
     }
 };
+
 
 const getAllProductFinancialStock = async (req, res) => {
     try {
@@ -85,17 +106,26 @@ const getAllProductFinancialStock = async (req, res) => {
         const page = Math.max(1, Number(req.query.page) || 1);
         const limit = Math.max(1, Number(req.query.limit) || DEFAULT_PAGE_SIZE);
         const search = req.query.search || "";
+        const financialYear = req.query.financialYear || "";
         const skip = (page - 1) * limit;
+
         const pipeline = [
             {
-                $match: {
-                    userId: userId
-                }
+                $match: { userId }
             },
+
+            ...(financialYear
+                ? [{ $match: { financialYear } }]
+                : []),
+
+            {
+                $unwind: "$products"
+            },
+
             {
                 $lookup: {
                     from: "products",
-                    localField: "productId",
+                    localField: "products.productId",
                     foreignField: "_id",
                     as: "product"
                 }
@@ -103,20 +133,6 @@ const getAllProductFinancialStock = async (req, res) => {
             {
                 $unwind: {
                     path: "$product",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $lookup: {
-                    from: "financialyears",
-                    localField: "financialYearId",
-                    foreignField: "_id",
-                    as: "financialYear"
-                }
-            },
-            {
-                $unwind: {
-                    path: "$financialYear",
                     preserveNullAndEmptyArrays: true
                 }
             }
@@ -135,6 +151,20 @@ const getAllProductFinancialStock = async (req, res) => {
         const total = totalResult[0]?.total || 0;
 
         pipeline.push(
+            {
+                $project: {
+                    _id: 0,
+                    financialYear: 1,
+                    productId: "$products.productId",
+                    productName: "$product.name",
+                    unit: "$product.unit",
+                    openingStock: "$products.openingStock",
+                    totalPurchase: "$products.totalPurchase",
+                    totalSale: "$products.totalSale",
+                    closingStock: "$products.closingStock",
+                    createdAt: 1
+                }
+            },
             { $sort: { createdAt: -1 } },
             { $skip: skip },
             { $limit: limit }
@@ -340,10 +370,156 @@ const deleteProductFinancialStock = async (req, res) => {
     }
 };
 
+const getAllCurrentStock = async (req, res) => {
+    try {
+        const userId = new mongoose.Types.ObjectId(req.user._id);
+        const DEFAULT_PAGE_SIZE = Number(process.env.DEFAULT_PAGE_SIZE) || 10;
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.max(1, Number(req.query.limit) || DEFAULT_PAGE_SIZE);
+        const search = req.query.search || "";
+        const skip = (page - 1) * limit;
+        const pipeline = [
+            {
+                $match: { userId }
+            },
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "productId",
+                    foreignField: "_id",
+                    as: "product"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$product",
+                    preserveNullAndEmptyArrays: true
+                }
+            }
+        ];
+        if (search) {
+            pipeline.push({
+                $match: {
+                    "product.name": { $regex: search, $options: "i" }
+                }
+            });
+        }
+
+        const countPipeline = [...pipeline, { $count: "total" }];
+        const totalResult = await CurrentStockModel.aggregate(countPipeline);
+        const total = totalResult[0]?.total || 0;
+
+        pipeline.push(
+            {
+                $project: {
+                    _id: 0,
+                    productId: 1,
+                    quantity: 1,
+                    productName: "$product.name",
+                    unit: "$product.unit",
+                    type: "$product.type",
+                    costPrice: "$product.costPrice",
+                    sellingPrice: "$product.sellingPrice",
+                    createdAt: 1
+                }
+            },
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+        );
+
+        const stocks = await CurrentStockModel.aggregate(pipeline);
+
+        return res.json({
+            success: true,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            },
+            data: stocks
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+const carryForwardFinancialYear = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const userId = req.user._id;
+
+        const currentFY = getFinancialYear();
+        const [startYear, endYear] = currentFY.split("-").map(Number);
+        const nextFY = `${endYear}-${endYear + 1}`;
+
+        const currentStockDoc = await ProductFinancialStock.findOne({
+            userId,
+            financialYear: currentFY
+        }).session(session);
+
+        if (!currentStockDoc) {
+            throw new Error("Current financial year stock not found");
+        }
+
+        const existingNextFY = await ProductFinancialStock.findOne({
+            userId,
+            financialYear: nextFY
+        }).session(session);
+
+        if (existingNextFY) {
+            throw new Error("Next financial year already created");
+        }
+
+        const newProducts = currentStockDoc.products.map(item => ({
+            productId: item.productId,
+            openingStock: item.closingStock,
+            totalPurchase: 0,
+            totalSale: 0,
+            closingStock: item.closingStock
+        }));
+        const newFinancialYearDoc = await ProductFinancialStock.create(
+            [{
+                userId,
+                financialYear: nextFY,
+                products: newProducts
+            }],
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(201).json({
+            success: true,
+            message: `Financial year closed successfully. ${nextFY} created.`,
+            data: newFinancialYearDoc[0]
+        });
+
+    } catch (error) {
+        console.log("Error in carryForwardFinancialYear:", error);
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 module.exports = {
     createProductFinancialStock,
     getAllProductFinancialStock,
     getSingleProductFinancialStock,
     updateProductFinancialStock,
-    deleteProductFinancialStock
+    deleteProductFinancialStock,
+    getAllCurrentStock,
+    carryForwardFinancialYear
 };
