@@ -504,7 +504,6 @@ const carryForwardFinancialYear = async (req, res) => {
         });
 
     } catch (error) {
-        console.log("Error in carryForwardFinancialYear:", error);
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({

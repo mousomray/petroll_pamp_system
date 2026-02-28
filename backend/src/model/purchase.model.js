@@ -12,7 +12,8 @@ const purchaseSchema = new mongoose.Schema(
         supplierId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Supplier",
-            required: true
+            required: true,
+            index: true
         },
 
         invoiceNo: {
@@ -23,12 +24,10 @@ const purchaseSchema = new mongoose.Schema(
 
         purchaseDate: {
             type: Date,
-            required: true
+            required: true,
+            index: true
         },
 
-        // ===============================
-        // 💰 AMOUNTS
-        // ===============================
         subTotal: {
             type: Number,
             required: true,
@@ -37,27 +36,17 @@ const purchaseSchema = new mongoose.Schema(
 
         discountAmount: {
             type: Number,
-            default: 0
+            default: 0,
+            min: 0
         },
 
-        cgstAmount: {
-            type: Number,
-            default: 0
-        },
-
-        sgstAmount: {
-            type: Number,
-            default: 0
-        },
-
-        igstAmount: {
-            type: Number,
-            default: 0
-        },
-
+        cgstAmount: { type: Number, default: 0, min: 0 },
+        sgstAmount: { type: Number, default: 0, min: 0 },
+        
         taxAmount: {
             type: Number,
-            default: 0
+            default: 0,
+            min: 0
         },
 
         roundOff: {
@@ -67,17 +56,20 @@ const purchaseSchema = new mongoose.Schema(
 
         totalAmount: {
             type: Number,
-            required: true
+            required: true,
+            min: 0
         },
 
         paidAmount: {
             type: Number,
-            default: 0
+            default: 0,
+            min: 0
         },
 
         dueAmount: {
             type: Number,
-            default: 0
+            default: 0,
+            min: 0
         },
 
         paymentStatus: {
@@ -92,6 +84,11 @@ const purchaseSchema = new mongoose.Schema(
             default: "CASH"
         },
 
+        note: {
+            type: String,
+            trim: true
+        },
+
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
@@ -100,11 +97,13 @@ const purchaseSchema = new mongoose.Schema(
 
         isActive: {
             type: Boolean,
-            default: true
+            default: true,
+            index: true
         }
     },
     { timestamps: true }
 );
+
 
 const purchaseItemSchema = new mongoose.Schema(
     {
@@ -118,7 +117,8 @@ const purchaseItemSchema = new mongoose.Schema(
         productId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Product",
-            required: true
+            required: true,
+            index: true
         },
 
         quantity: {
@@ -135,38 +135,50 @@ const purchaseItemSchema = new mongoose.Schema(
 
         discount: {
             type: Number,
-            default: 0
+            default: 0,
+            min: 0
         },
 
-        // ===============================
-        // 🧾 GST
-        // ===============================
+        /* ===============================
+           🧾 GST
+        =============================== */
+
         cgstPercent: { type: Number, default: 0 },
         sgstPercent: { type: Number, default: 0 },
         igstPercent: { type: Number, default: 0 },
 
-        cgstAmount: { type: Number, default: 0 },
-        sgstAmount: { type: Number, default: 0 },
-        igstAmount: { type: Number, default: 0 },
+        cgstAmount: { type: Number, default: 0, min: 0 },
+        sgstAmount: { type: Number, default: 0, min: 0 },
+        igstAmount: { type: Number, default: 0, min: 0 },
 
         taxAmount: {
             type: Number,
-            default: 0
+            default: 0,
+            min: 0
         },
 
         total: {
             type: Number,
-            required: true
+            required: true,
+            min: 0
         },
 
         tankId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Tank",
-            default: null
+            default: null,
+            index: true
         }
     },
     { timestamps: true }
 );
+
+
+purchaseSchema.index(
+    { userId: 1, invoiceNo: 1 },
+    { unique: true }
+);
+
 
 const PurchaseModel = mongoose.model("Purchase", purchaseSchema);
 const PurchaseItemModel = mongoose.model("PurchaseItem", purchaseItemSchema);
@@ -175,5 +187,3 @@ module.exports = {
     PurchaseModel,
     PurchaseItemModel
 };
-
-
