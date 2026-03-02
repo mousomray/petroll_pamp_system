@@ -125,15 +125,16 @@ function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center p-8">
-                <i className="pi pi-spin pi-spinner text-4xl text-primary"></i>
+            <div className="flex justify-center items-center p-4">
+                <i className="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
             </div>
         );
     }
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="px-4 pt-2 pb-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Tank Name */}
                 <div className="flex flex-col gap-2">
                     <label htmlFor="tankName" className="font-medium text-sm">
@@ -204,24 +205,25 @@ function TankForm({ tankId, onClose, onSuccess }: TankFormProps) {
                 )}
             </div>
 
-            {/* Form Actions */}
-            <div className="flex justify-end gap-2 mt-6">
-                <Button
-                    type="button"
-                    label="Cancel"
-                    severity="secondary"
-                    outlined
-                    onClick={onClose}
-                    disabled={isSubmitting}
-                />
-                <Button
-                    type="submit"
-                    label={isEditMode ? "Update" : "Create"}
-                    loading={isSubmitting}
-                    disabled={isSubmitting}
-                />
-            </div>
-        </form>
+                {/* Form Actions */}
+                <div className="flex justify-end gap-3 pt-3">
+                    <Button
+                        type="button"
+                        label="Cancel"
+                        severity="secondary"
+                        outlined
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                    />
+                    <Button
+                        type="submit"
+                        label={isEditMode ? "Update" : "Create"}
+                        loading={isSubmitting}
+                        disabled={isSubmitting}
+                    />
+                </div>
+            </form>
+        </div>
     );
 }
 

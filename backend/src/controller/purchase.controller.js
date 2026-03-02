@@ -3,7 +3,7 @@ const { PurchaseModel, PurchaseItemModel } = require("../model/purchase.model");
 const Product = require("../model/product.model");
 const Tank = require("../model/tank.model");
 const CurrentStock = require("../model/currentStock.model");
-const FinancialStock = require("../model/productFinancialStock.model");
+const OpningStockModle = require("../model/opningStock.model");
 const { createPurchaseSchema } = require("../schema/purchase.schema");
 
 const getFinancialYearFromDate = (date) => {
@@ -31,19 +31,21 @@ const createPurchase = async (req, res) => {
 
         const {
             supplierId,
-            invoiceNo,   
+            invoiceNo,
             purchaseDate,
             paymentMethod = "CASH",
             items
         } = req.body;
 
         if (!supplierId) throw new Error("Supplier required");
-        if (!invoiceNo) throw new Error("Invoice number required");  
+        if (!invoiceNo) throw new Error("Invoice number required");
         if (!purchaseDate) throw new Error("Purchase date required");
         if (!items || !Array.isArray(items) || items.length === 0)
             throw new Error("Purchase items required");
 
-       
+        // ============================
+        // ✅ DUPLICATE INVOICE CHECK
+        // ============================
         const existingInvoice = await PurchaseModel.findOne({
             userId,
             invoiceNo
@@ -61,7 +63,9 @@ const createPurchase = async (req, res) => {
 
         const purchaseItemsData = [];
 
-        
+        // ============================
+        // PROCESS ITEMS
+        // ============================
         for (const item of items) {
 
             if (!item.productId || !item.quantity || item.quantity <= 0)
@@ -85,7 +89,9 @@ const createPurchase = async (req, res) => {
             const baseAmount = item.quantity * costPrice;
             subTotal += baseAmount;
 
-           
+            // ============================
+            // 🛢 TANK PRODUCT
+            // ============================
             if (product.tankIds && product.tankIds.length > 0) {
 
                 if (!item.tankDistributions || item.tankDistributions.length === 0)
@@ -118,6 +124,7 @@ const createPurchase = async (req, res) => {
                             `Tank capacity exceeded for ${tank.name}`
                         );
 
+                    // ✅ Update Tank
                     tank.currentQuantity += dist.quantity;
                     await tank.save({ session });
 
@@ -151,6 +158,9 @@ const createPurchase = async (req, res) => {
 
             } else {
 
+                // ============================
+                // 📦 NON-TANK PRODUCT
+                // ============================
 
                 const cgstAmount = (baseAmount * cgstPercent) / 100;
                 const sgstAmount = (baseAmount * sgstPercent) / 100;
@@ -179,19 +189,58 @@ const createPurchase = async (req, res) => {
                 });
             }
 
-          
+            // ============================
+            // 📦 UPDATE CURRENT STOCK
+            // ============================
             await CurrentStock.updateOne(
                 { userId, productId: product._id },
                 { $inc: { quantity: item.quantity } },
                 { upsert: true, session }
             );
+
+            // ============================
+            // 📊 UPDATE OPENING STOCK TABLE
+            // ============================
+
+            const currentYear = new Date().getFullYear();
+            const nextYear = currentYear + 1;
+            const financialYear = `${currentYear}-${nextYear}`;
+
+            const existingOpeningStock = await OpningStockModle.findOne({
+                userId,
+                productId: product._id,
+                financialYear
+            }).session(session);
+
+            if (existingOpeningStock) {
+
+                existingOpeningStock.totalPurchase += item.quantity;
+                existingOpeningStock.closingStock += item.quantity;
+
+                await existingOpeningStock.save({ session });
+
+            } else {
+
+                await OpningStockModle.create([{
+                    userId,
+                    productId: product._id,
+                    financialYear,
+                    openingStock: 0,
+                    totalPurchase: item.quantity,
+                    totalSale: 0,
+                    closingStock: item.quantity
+                }], { session });
+
+            }
         }
 
-     
+        // ============================
+        // CREATE PURCHASE ENTRY
+        // ============================
         const purchaseDoc = await PurchaseModel.create([{
             userId,
             supplierId,
-            invoiceNo, // ✅ manual invoice
+            invoiceNo,
             purchaseDate,
             paymentStatus: "PAID",
             paymentMethod,

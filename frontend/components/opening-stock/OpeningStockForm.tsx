@@ -9,8 +9,10 @@ import { MultiSelect } from "primereact/multiselect";
 import { Button } from "primereact/button";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
+import { Dialog } from "primereact/dialog";
 import { toast } from "react-toastify";
 import axiosInstance from "@/service/axios.service";
+import ProductFrom from "@/components/product/ProductFrom";
 
 const createOpeningStockSchema = z.object({
     productIds: z.array(z.string()).min(1, "At least one product is required"),
@@ -57,6 +59,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
     const [currentStock, setCurrentStock] = useState<any>(null);
     const [editProduct, setEditProduct] = useState<Product | null>(null);
     const [tanks, setTanks] = useState<Tank[]>([]);
+    const [showProductDialog, setShowProductDialog] = useState(false);
     const isEditMode = !!stockId;
 
     const createForm = useForm<CreateOpeningStockFormData>({
@@ -101,6 +104,31 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
             setProducts(res.data.products || []);
         } catch (error: any) {
             toast.error("Failed to fetch products");
+        }
+    };
+
+    const handleProductCreated = async () => {
+        // Refresh product list and auto-select new product
+        try {
+            const res = await axiosInstance.get("/api/product/dropdown-all-products", {
+                params: { page: 1, limit: 1000 },
+            });
+            const updatedProducts = res.data.products || [];
+            setProducts(updatedProducts);
+            
+            // Auto-select the newly created product
+            if (updatedProducts.length > 0) {
+                const newProduct = updatedProducts[updatedProducts.length - 1];
+                const currentProductIds = createForm.watch("productIds") || [];
+                // Add the new product ID to the selected products
+                createForm.setValue("productIds", [...currentProductIds, newProduct._id]);
+                toast.success(`Product "${newProduct.name}" added and selected`);
+            }
+            
+            setShowProductDialog(false);
+        } catch (error: any) {
+            console.error("Failed to refresh products:", error);
+            setShowProductDialog(false);
         }
     };
 
@@ -379,22 +407,32 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                     <label htmlFor="productIds" className="font-medium text-sm">
                         Select Products <span className="text-red-500">*</span>
                     </label>
-                    <Controller
-                        name="productIds"
-                        control={control as any}
-                        render={({ field }) => (
-                            <MultiSelect
-                                id="productIds"
-                                value={field.value}
-                                onChange={(e) => field.onChange(e.value)}
-                                options={productOptions}
-                                placeholder="Select products"
-                                filter
-                                display="chip"
-                                className={`w-full ${(errors as any).productIds ? "p-invalid" : ""}`}
-                            />
-                        )}
-                    />
+                    <div className="flex gap-2">
+                        <Controller
+                            name="productIds"
+                            control={control as any}
+                            render={({ field }) => (
+                                <MultiSelect
+                                    id="productIds"
+                                    value={field.value}
+                                    onChange={(e) => field.onChange(e.value)}
+                                    options={productOptions}
+                                    placeholder="Select products"
+                                    filter
+                                    display="chip"
+                                    className={`flex-1 ${(errors as any).productIds ? "p-invalid" : ""}`}
+                                />
+                            )}
+                        />
+                        <Button
+                            type="button"
+                            icon="pi pi-plus"
+                            onClick={() => setShowProductDialog(true)}
+                            className="bg-green-500 border-0 hover:bg-green-600"
+                            tooltip="Create New Product"
+                            tooltipOptions={{ position: 'top' }}
+                        />
+                    </div>
                     {(errors as any).productIds && (
                         <small className="text-red-500">{(errors as any).productIds.message}</small>
                     )}
@@ -533,7 +571,30 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                         icon="pi pi-check"
                     />
                 </div>
-            </form>
+                {/* Product Creation Dialog */}
+                <Dialog
+                    header={
+                        <div className="flex items-center gap-3 bg-gradient-to-r from-blue-500 to-cyan-600 mb-2 p-3 rounded-t-lg">
+                            <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+                                <i className="pi pi-box text-white text-2xl"></i>
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Create New Product</h2>
+                                <p className="text-sm text-white/90">Add a new product to your inventory</p>
+                            </div>
+                        </div>
+                    }
+                    visible={showProductDialog}
+                    style={{ width: "70vw" }}
+                    onHide={() => setShowProductDialog(false)}
+                    dismissableMask
+                >
+                    <ProductFrom
+                        productId={null}
+                        onClose={() => setShowProductDialog(false)}
+                        onSuccess={handleProductCreated}
+                    />
+                </Dialog>            </form>
         );
     }
 

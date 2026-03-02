@@ -8,6 +8,7 @@ import { Dialog } from "primereact/dialog";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
+import { Dropdown } from "primereact/dropdown";
 import { IconField } from "primereact/iconfield";
 import { InputIcon } from "primereact/inputicon";
 import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
@@ -49,9 +50,15 @@ function Page() {
     const [debouncedSearch, setDebouncedSearch] = useState<string>("");
     const [financialYearInput, setFinancialYearInput] = useState<string>("");
     const [debouncedFinancialYear, setDebouncedFinancialYear] = useState<string>("");
+    const [financialYearOptions, setFinancialYearOptions] = useState<Array<{ label: string; value: string }>>([]);
     const [carryLoading, setCarryLoading] = useState(false);
 
     /* ================= FETCH STOCKS (server-side pagination) ================= */
+    // Fetch all financial years on mount for dropdown options
+    useEffect(() => {
+        fetchFinancialYears();
+    }, []);
+
     // fetch when page, rows, debounced search or financial year change
     useEffect(() => {
         fetchStockData();
@@ -65,7 +72,8 @@ function Page() {
 
     // debounce financialYearInput -> debouncedFinancialYear
     useEffect(() => {
-        const t = setTimeout(() => setDebouncedFinancialYear(financialYearInput.trim()), 500);
+        const value = String(financialYearInput ?? "").trim();
+        const t = setTimeout(() => setDebouncedFinancialYear(value), 500);
         return () => clearTimeout(t);
     }, [financialYearInput]);
 
@@ -73,6 +81,35 @@ function Page() {
     useEffect(() => {
         setPagination((prev) => ({ ...prev, page: 1 }));
     }, [debouncedSearch, debouncedFinancialYear]);
+
+    const fetchFinancialYears = async () => {
+        try {
+            // Fetch all stocks without pagination to get all unique financial years
+            const res = await axiosInstance.get("/api/opening-stock/all-opening-stocks", {
+                params: {
+                    page: 1,
+                    limit: 1000, // High limit to get all years
+                },
+            });
+
+            const years = Array.from(
+                new Set(
+                    (res.data.stocks || [])
+                        .map((s: any) => s.financialYear)
+                        .filter(Boolean)
+                )
+            ) as string[];
+
+            const opts = years
+                .sort((a: string, b: string) => (a < b ? 1 : -1))
+                .map((y: string) => ({ label: y, value: y }));
+
+            setFinancialYearOptions(opts);
+        } catch (error: any) {
+            console.error("Failed to fetch financial years:", error);
+            setFinancialYearOptions([]);
+        }
+    };
 
     const fetchStockData = async () => {
         try {
@@ -142,6 +179,7 @@ function Page() {
                 financialYear: debouncedFinancialYear || undefined,
             });
             toast.success(res.data.message || "Carry forward completed successfully");
+            await fetchFinancialYears(); // Refresh dropdown options
             await fetchStockData();
         } catch (err: any) {
             if (axios.isAxiosError(err)) {
@@ -259,15 +297,15 @@ function Page() {
                         className="p-inputtext-sm"
                     />
                 </IconField>
-                <IconField iconPosition="left">
-                    <InputIcon className="pi pi-calendar" />
-                    <InputText
-                        value={financialYearInput}
-                        onChange={(e) => setFinancialYearInput(e.target.value)}
-                        placeholder="Financial Year (e.g., 2026-2027)"
-                        className="p-inputtext-sm"
-                    />
-                </IconField>
+                <Dropdown
+                    value={financialYearInput}
+                    options={[{ label: "All Years", value: "" }, ...financialYearOptions]}
+                    onChange={(e) => setFinancialYearInput(String(e.value ?? ""))}
+                    placeholder="Filter by Year"
+                    className="w-48"
+                    showClear
+                    emptyMessage="No financial years available"
+                />
                 <Button
                     label="Carry Forward Year"
                     icon="pi pi-forward"
@@ -387,6 +425,7 @@ function Page() {
                             setSelectedStock(null);
                         }}
                         onSuccess={() => {
+                            fetchFinancialYears(); // Refresh dropdown options
                             fetchStockData();
                             setVisible(false);
                             setEditStockId(null);

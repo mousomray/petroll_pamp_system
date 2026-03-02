@@ -313,8 +313,8 @@ function Page() {
           <Column field="name" header="Name" sortable />
           <Column field="type" header="Type" />
           <Column field="unit" header="Unit" />
-          <Column field="costPrice" header="Cost Price" body={(row: any) => `$${row.costPrice?.toFixed(2) || '0.00'}`} />
-          <Column field="sellingPrice" header="Selling Price" body={(row: any) => `$${row.sellingPrice?.toFixed(2) || '0.00'}`} />
+          <Column field="costPrice" header="Cost Price" body={(row: any) => `₹${row.costPrice?.toFixed(2) || '0.00'}`} />
+          <Column field="sellingPrice" header="Selling Price" body={(row: any) => `₹${row.sellingPrice?.toFixed(2) || '0.00'}`} />
           <Column field="cgstPercent" header="CGST %" body={(row: any) => `${row.cgstPercent || 0}%`} />
           <Column field="sgstPercent" header="SGST %" body={(row: any) => `${row.sgstPercent || 0}%`} />
           <Column field="hsnCode" header="HSN Code" />

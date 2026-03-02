@@ -9,8 +9,11 @@ import { InputText } from "primereact/inputtext";
 import { Calendar } from "primereact/calendar";
 import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
+import { Dialog } from "primereact/dialog";
 import { toast } from "react-toastify";
 import axiosInstance from "@/service/axios.service";
+import SupplierForm from "@/components/supplier/SupplierForm";
+import ProductFrom from "@/components/product/ProductFrom";
 
 // Simple schema matching exact payload requirements
 const simplePurchaseSchema = z.object({
@@ -45,6 +48,9 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
     const [products, setProducts] = useState<any[]>([]);
     const [itemTanks, setItemTanks] = useState<Record<number, any[]>>({});
     const [itemTankLoading, setItemTankLoading] = useState<Record<number, boolean>>({});
+    const [showSupplierDialog, setShowSupplierDialog] = useState(false);
+    const [showProductDialog, setShowProductDialog] = useState(false);
+    const [productDialogIndex, setProductDialogIndex] = useState<number | null>(null);
 
     const {
         handleSubmit,
@@ -183,6 +189,73 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
         }
     };
 
+    const handleSupplierCreated = async () => {
+        // Refresh supplier list and auto-select new supplier
+        try {
+            const res = await axiosInstance.get("/api/supplier/dropdown-suppliers", {
+                params: { page: 1, limit: 1000 },
+            });
+            const updatedSuppliers = res.data.suppliers || [];
+            setSuppliers(updatedSuppliers);
+            
+            // Auto-select the newly created supplier (last one)
+            if (updatedSuppliers.length > 0) {
+                const newSupplier = updatedSuppliers[updatedSuppliers.length - 1];
+                setValue("supplierId", newSupplier._id);
+                toast.success(`Supplier "${newSupplier.name}" added and selected`);
+            }
+            
+            setShowSupplierDialog(false);
+        } catch (error: any) {
+            console.error("Failed to refresh suppliers:", error);
+            setShowSupplierDialog(false);
+        }
+    };
+
+    const handleProductCreated = async () => {
+        // Refresh product list and auto-select new product
+        try {
+            const res = await axiosInstance.get("/api/product/dropdown-all-products");
+            const updatedProducts = res.data.products || [];
+            setProducts(updatedProducts);
+            
+            // Auto-select the newly created product in the specific item row
+            if (updatedProducts.length > 0 && productDialogIndex !== null) {
+                const newProduct = updatedProducts[updatedProducts.length - 1];
+                setValue(`items.${productDialogIndex}.productId`, newProduct._id);
+                toast.success(`Product "${newProduct.name}" added and selected`);
+                
+                // Fetch tanks for the new product if it's LITRE unit
+                if (newProduct.unit?.toUpperCase() === 'LITRE' || newProduct.unit?.toUpperCase() === 'LITER') {
+                    try {
+                        setItemTankLoading(prev => ({ ...prev, [productDialogIndex]: true }));
+                        const tankRes = await axiosInstance.get(`/api/tank/tanks-by-product/${newProduct._id}`);
+                        const tanks = tankRes.data?.data || [];
+                        setItemTanks(prev => ({ ...prev, [productDialogIndex]: tanks }));
+                        
+                        // Initialize one distribution if tanks available
+                        if (tanks.length > 0) {
+                            setValue(`items.${productDialogIndex}.tankDistributions`, [
+                                { tankId: tanks[0]._id, quantity: 0 }
+                            ]);
+                        }
+                    } catch (e) {
+                        console.error('Failed to fetch tanks for new product:', e);
+                    } finally {
+                        setItemTankLoading(prev => ({ ...prev, [productDialogIndex]: false }));
+                    }
+                }
+            }
+            
+            setShowProductDialog(false);
+            setProductDialogIndex(null);
+        } catch (error: any) {
+            console.error("Failed to refresh products:", error);
+            setShowProductDialog(false);
+            setProductDialogIndex(null);
+        }
+    };
+
     const onSubmit = async (data: CreatePurchaseFormData) => {
         setIsSubmitting(true);
         try {
@@ -315,23 +388,33 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                             <label className="text-sm font-semibold text-gray-700">
                                 Supplier <span className="text-red-500">*</span>
                             </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-users text-blue-600"></i>
-                                </span>
-                                <Controller
-                                    name="supplierId"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Dropdown
-                                            value={field.value}
-                                            onChange={(e) => field.onChange(e.value)}
-                                            options={supplierOptions}
-                                            placeholder="Select supplier"
-                                            filter
-                                            className="w-full"
-                                        />
-                                    )}
+                            <div className="flex gap-2">
+                                <div className="p-inputgroup flex-1">
+                                    <span className="p-inputgroup-addon bg-blue-50">
+                                        <i className="pi pi-users text-blue-600"></i>
+                                    </span>
+                                    <Controller
+                                        name="supplierId"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Dropdown
+                                                value={field.value}
+                                                onChange={(e) => field.onChange(e.value)}
+                                                options={supplierOptions}
+                                                placeholder="Select supplier"
+                                                filter
+                                                className="w-full"
+                                            />
+                                        )}
+                                    />
+                                </div>
+                                <Button
+                                    type="button"
+                                    icon="pi pi-plus"
+                                    onClick={() => setShowSupplierDialog(true)}
+                                    className="bg-green-500 border-0 hover:bg-green-600 text-lg p-3"
+                                    tooltip="Create New Supplier"
+                                    tooltipOptions={{ position: 'top' }}
                                 />
                             </div>
                             {errors.supplierId && (
@@ -435,12 +518,12 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                 {fields.length > 1 && (
                                     <Button
                                         type="button"
+                                        label="Remove Item"
                                         icon="pi pi-trash"
                                         onClick={() => removeItem(index)}
-                                        className="bg-red-500 text-white border-0 p-2"
+                                        className="bg-red-500 hover:bg-red-600 text-white border-0 px-3 py-2"
                                         size="small"
-                                        rounded
-                                        outlined
+                                        severity="danger"
                                     />
                                 )}
                             </div>
@@ -452,52 +535,65 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                     <label className="text-sm font-semibold text-gray-700">
                                         Product <span className="text-red-500">*</span>
                                     </label>
-                                    <Controller
-                                        name={`items.${index}.productId`}
-                                        control={control}
-                                        render={({ field }) => (
-                                            <Dropdown
-                                                value={field.value}
-                                                onChange={async (e) => {
-                                                    field.onChange(e.value);
-                                                    const newProd = products.find(p => p._id === e.value);
-                                                    const unit = newProd?.unit?.toString()?.toUpperCase();
-                                                    // If product is litre, fetch tanks for that product
-                                                    if (unit === 'LITRE' || unit === 'LITER') {
-                                                        try {
-                                                            setItemTankLoading(prev => ({ ...prev, [index]: true }));
-                                                            const res = await axiosInstance.get(`/api/tank/tanks-by-product/${e.value}`);
-                                                            const data = res.data?.data || [];
-                                                            setItemTanks(prev => ({ ...prev, [index]: data }));
-                                                            // Initialize one distribution for better UX
-                                                            if (data.length > 0) {
-                                                                setValue(`items.${index}.tankId`, data[0]._id);
-                                                                setValue(`items.${index}.tankDistributions`, [{ tankId: data[0]._id, quantity: 0 }]);
-                                                            } else {
+                                    <div className="flex gap-2">
+                                        <Controller
+                                            name={`items.${index}.productId`}
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Dropdown
+                                                    value={field.value}
+                                                    onChange={async (e) => {
+                                                        field.onChange(e.value);
+                                                        const newProd = products.find(p => p._id === e.value);
+                                                        const unit = newProd?.unit?.toString()?.toUpperCase();
+                                                        // If product is litre, fetch tanks for that product
+                                                        if (unit === 'LITRE' || unit === 'LITER') {
+                                                            try {
+                                                                setItemTankLoading(prev => ({ ...prev, [index]: true }));
+                                                                const res = await axiosInstance.get(`/api/tank/tanks-by-product/${e.value}`);
+                                                                const data = res.data?.data || [];
+                                                                setItemTanks(prev => ({ ...prev, [index]: data }));
+                                                                // Initialize one distribution for better UX
+                                                                if (data.length > 0) {
+                                                                    setValue(`items.${index}.tankId`, data[0]._id);
+                                                                    setValue(`items.${index}.tankDistributions`, [{ tankId: data[0]._id, quantity: 0 }]);
+                                                                } else {
+                                                                    setValue(`items.${index}.tankId`, null);
+                                                                    setValue(`items.${index}.tankDistributions`, []);
+                                                                }
+                                                            } catch (err) {
+                                                                console.error("Failed to fetch tanks", err);
+                                                                setItemTanks(prev => ({ ...prev, [index]: [] }));
                                                                 setValue(`items.${index}.tankId`, null);
                                                                 setValue(`items.${index}.tankDistributions`, []);
+                                                            } finally {
+                                                                setItemTankLoading(prev => ({ ...prev, [index]: false }));
                                                             }
-                                                        } catch (err) {
-                                                            console.error("Failed to fetch tanks", err);
+                                                        } else {
                                                             setItemTanks(prev => ({ ...prev, [index]: [] }));
                                                             setValue(`items.${index}.tankId`, null);
                                                             setValue(`items.${index}.tankDistributions`, []);
-                                                        } finally {
-                                                            setItemTankLoading(prev => ({ ...prev, [index]: false }));
                                                         }
-                                                    } else {
-                                                        setItemTanks(prev => ({ ...prev, [index]: [] }));
-                                                        setValue(`items.${index}.tankId`, null);
-                                                        setValue(`items.${index}.tankDistributions`, []);
-                                                    }
-                                                }}
-                                                options={productOptions}
-                                                placeholder="Select product"
-                                                filter
-                                                className="w-full"
-                                            />
-                                        )}
-                                    />
+                                                    }}
+                                                    options={productOptions}
+                                                    placeholder="Select product"
+                                                    filter
+                                                    className="flex-1"
+                                                />
+                                            )}
+                                        />
+                                        <Button
+                                            type="button"
+                                            icon="pi pi-plus"
+                                            onClick={() => {
+                                                setProductDialogIndex(index);
+                                                setShowProductDialog(true);
+                                            }}
+                                            className="bg-green-500 border-0 hover:bg-green-600 text-lg p-3"
+                                            tooltip="Create New Product"
+                                            tooltipOptions={{ position: 'top' }}
+                                        />
+                                    </div>
                                     {errors.items?.[index]?.productId && (
                                         <small className="text-red-500 flex items-center gap-1">
                                             <i className="pi pi-exclamation-circle"></i>
@@ -692,7 +788,61 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                     />
                 </div>
             </form>
-        </div>
+            {/* Supplier Creation Dialog */}
+            <Dialog
+                header={
+                    <div className="flex items-center gap-3 bg-gradient-to-r from-purple-500 to-indigo-600 mb-2 p-3 rounded-t-lg">
+                        <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+                            <i className="pi pi-users text-white text-2xl"></i>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Create New Supplier</h2>
+                            <p className="text-sm text-white/90">Add a new supplier to your network</p>
+                        </div>
+                    </div>
+                }
+                visible={showSupplierDialog}
+                style={{ width: "50vw" }}
+                onHide={() => setShowSupplierDialog(false)}
+                dismissableMask
+            >
+                <SupplierForm
+                    supplierId={null}
+                    onClose={() => setShowSupplierDialog(false)}
+                    onSuccess={handleSupplierCreated}
+                />
+            </Dialog>
+
+            {/* Product Creation Dialog */}
+            <Dialog
+                header={
+                    <div className="flex items-center gap-3 bg-gradient-to-r from-blue-500 to-cyan-600 mb-2 p-3 rounded-t-lg">
+                        <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+                            <i className="pi pi-box text-white text-2xl"></i>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Create New Product</h2>
+                            <p className="text-sm text-white/90">Add a new product to your inventory</p>
+                        </div>
+                    </div>
+                }
+                visible={showProductDialog}
+                style={{ width: "70vw" }}
+                onHide={() => {
+                    setShowProductDialog(false);
+                    setProductDialogIndex(null);
+                }}
+                dismissableMask
+            >
+                <ProductFrom
+                    productId={null}
+                    onClose={() => {
+                        setShowProductDialog(false);
+                        setProductDialogIndex(null);
+                    }}
+                    onSuccess={handleProductCreated}
+                />
+            </Dialog>        </div>
     );
 }
 

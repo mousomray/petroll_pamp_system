@@ -555,6 +555,8 @@ const getOpeningStocks = async (req, res) => {
           financialYear: 1,
           openingStock: 1,
           closingStock: 1,
+          totalPurchase: 1,
+          totalSale: 1,
           createdAt: 1,
 
           productId: "$product._id",
@@ -606,19 +608,11 @@ const getOpeningStocks = async (req, res) => {
 
 const carryForwardFinancialYear = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
+    await session.startTransaction();
+
     const userId = req.user.id;
-
-    const today = new Date();
-    const day = today.getDate();
-    const month = today.getMonth(); // April = 3
-
-    // ✅ Allow only AFTER or ON 1st April
-    if (!(month > 3 || (month === 3 && day >= 1))) {
-      throw new Error("Carry forward allowed only after 1st April");
-    }
 
     const currentFY = getFinancialYear();
     const nextFY = getNextFinancialYear();
@@ -665,16 +659,22 @@ const carryForwardFinancialYear = async (req, res) => {
       previousYearStock.closingStock = stock.quantity;
       await previousYearStock.save({ session });
 
+      // =====================================================
       // ✅ CREATE NEXT YEAR RECORD
+      // =====================================================
       await OpningStockModle.create(
         [{
           userId,
           productId: stock.productId,
           financialYear: nextFY,
+
+          // 🔥 Carry forward logic
           openingStock: stock.quantity,
           closingStock: stock.quantity,
-          totalPurchase: previousYearStock.totalPurchase,
-          totalSale: previousYearStock.totalSale
+
+          // ✅ RESET FOR NEW YEAR
+          totalPurchase: 0,
+          totalSale: 0
         }],
         { session }
       );
@@ -689,6 +689,7 @@ const carryForwardFinancialYear = async (req, res) => {
     });
 
   } catch (error) {
+
     await session.abortTransaction();
     session.endSession();
 
@@ -698,4 +699,5 @@ const carryForwardFinancialYear = async (req, res) => {
     });
   }
 };
+
 module.exports = {carryForwardFinancialYear, createOpeningStock, updateOpeningStock, getOpeningStockById, getOpeningStocks, deleteOpeningStock };

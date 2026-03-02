@@ -10,9 +10,11 @@ import { Dropdown } from "primereact/dropdown";
 import { MultiSelect } from "primereact/multiselect";
 import { Checkbox } from "primereact/checkbox";
 import { Button } from "primereact/button";
+import { Dialog } from "primereact/dialog";
 import { toast } from "react-toastify";
 import axiosInstance from "@/service/axios.service";
 import { createProductSchema, updateProductSchema } from "@/helper/schema/Schema";
+import TankForm from "@/components/tank/TankForm";
 
 type CreateProductFormData = z.infer<typeof createProductSchema>;
 type UpdateProductFormData = z.infer<typeof updateProductSchema>;
@@ -39,6 +41,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
     const [tanks, setTanks] = useState<any[]>([]);
+    const [showTankDialog, setShowTankDialog] = useState(false);
     const isEditMode = !!productId;
 
     const {
@@ -96,6 +99,31 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
             setTanks(res.data.data || []);
         } catch (error: any) {
             console.error("Failed to fetch tanks:", error);
+        }
+    };
+
+    const handleTankCreated = async () => {
+        // Fetch the updated tank list
+        try {
+            const res = await axiosInstance.get("/api/tank/empty-dropdown-tanks", {
+                params: { page: 1, limit: 1000 },
+            });
+            const updatedTanks = res.data.data || [];
+            setTanks(updatedTanks);
+
+            // Auto-select the newly created tank (the last one in the list)
+            if (updatedTanks.length > 0) {
+                const newTank = updatedTanks[updatedTanks.length - 1];
+                const currentTankIds = watch("tankIds") || [];
+                // Add the new tank ID to the selected tanks
+                setValue("tankIds", [...currentTankIds, newTank._id]);
+                toast.success(`Tank "${newTank.tankName}" added and selected`);
+            }
+
+            setShowTankDialog(false);
+        } catch (error: any) {
+            console.error("Failed to refresh tanks:", error);
+            setShowTankDialog(false);
         }
     };
 
@@ -252,23 +280,33 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                                 <label className="text-sm font-semibold text-gray-700">
                                     Tanks
                                 </label>
-                                <Controller
-                                    name="tankIds"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <MultiSelect
-                                            value={field.value || []}
-                                            onChange={(e) => field.onChange(e.value)}
-                                            options={tanks}
-                                            optionLabel="tankName"
-                                            optionValue="_id"
-                                            placeholder="Select tanks"
-                                            className="w-full"
-                                            display="chip"
-                                            maxSelectedLabels={2}
-                                        />
-                                    )}
-                                />
+                                <div className="flex gap-2">
+                                    <Controller
+                                        name="tankIds"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <MultiSelect
+                                                value={field.value || []}
+                                                onChange={(e) => field.onChange(e.value)}
+                                                options={tanks}
+                                                optionLabel="tankName"
+                                                optionValue="_id"
+                                                placeholder="Select tanks"
+                                                className="flex-1"
+                                                display="chip"
+                                                maxSelectedLabels={2}
+                                            />
+                                        )}
+                                    />
+                                    <Button
+                                        type="button"
+                                        icon="pi pi-plus"
+                                        onClick={() => setShowTankDialog(true)}
+                                        className="bg-green-500 border-0 hover:bg-green-600"
+                                        tooltip="Create New Tank"
+                                        tooltipOptions={{ position: 'top' }}
+                                    />
+                                </div>
                                 {errors.tankIds && (
                                     <small className="text-red-500 flex items-center gap-1">
                                         <i className="pi pi-exclamation-circle"></i>
@@ -283,7 +321,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                 {/* Pricing Information */}
                 <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                        <i className="pi pi-dollar text-green-600"></i>
+                        <span className="text-green-600 text-base">₹</span>
                         Pricing Information
                     </h3>
 
@@ -295,7 +333,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                             </label>
                             <div className="p-inputgroup">
                                 <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-dollar text-blue-600"></i>
+                                    <i className="pi pi-indian-rupee text-blue-600"></i>
                                 </span>
                                 <Controller
                                     name="costPrice"
@@ -330,7 +368,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                             </label>
                             <div className="p-inputgroup">
                                 <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-dollar text-blue-600"></i>
+                                    <i className="pi pi-indian-rupee text-blue-600"></i>
                                 </span>
                                 <Controller
                                     name="sellingPrice"
@@ -552,6 +590,31 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                     />
                 </div>
             </form>
+
+            {/* Tank Creation Dialog */}
+            <Dialog
+                header={
+                    <div className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-teal-600 mb-2 p-3 rounded-t-lg">
+                        <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
+                            <i className="pi pi-database text-white text-2xl"></i>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Create New Tank</h2>
+                            <p className="text-sm text-white/90">Add a new tank to your inventory</p>
+                        </div>
+                    </div>
+                }
+                visible={showTankDialog}
+                style={{ width: "50vw" }}
+                onHide={() => setShowTankDialog(false)}
+                dismissableMask
+            >
+                <TankForm
+                    tankId={null}
+                    onClose={() => setShowTankDialog(false)}
+                    onSuccess={handleTankCreated}
+                />
+            </Dialog>
         </div>
     );
 }

@@ -4,7 +4,7 @@ const verifyJwt = require("../middleware/verifiyUser.js");
 const authorize = require("../middleware/authorize.js");
 
 
-const {carryForwardFinancialYear,createOpeningStock,updateOpeningStock,getOpeningStockById,getOpeningStocks,deleteOpeningStock} = require("../controller/opningStockcontroller.js")
+const {carryForwardFinancialYear,createOpeningStock,updateOpeningStock,getOpeningStockById,getOpeningStocks,deleteOpeningStock} = require("../controller/opningStock.controller.js")
 
 router.post("/create-opening-stock",verifyJwt, authorize("ADMIN"),createOpeningStock)
 router.get("/all-opening-stocks", verifyJwt, authorize("ADMIN"), getOpeningStocks);
