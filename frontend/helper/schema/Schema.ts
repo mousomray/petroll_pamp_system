@@ -4,6 +4,8 @@ import { z as zod } from 'zod'
 const productTypes = ["FUEL", "ACCESSORY"] as const;
 const productUnits = ["LITRE", "PIECE", "KG", "BOX"] as const;
 
+const objectIdSchema = zod.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid ObjectId");
+
 export const LoginSchema = zod.object({
   email: zod
     .string()
@@ -301,10 +303,36 @@ export const updateSupplierSchema = zod.object({
 });
 
 // ===============================
-// PURCHASE SCHEMA (frontend copy of backend purchase.schema.js)
+// NOZZLE SCHEMAS
 // ===============================
 
-const objectIdSchema = zod.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid ObjectId");
+export const createNozzleSchema = zod.object({
+  nozzleNumber: zod
+    .string()
+    .min(2, "Nozzle number must be at least 2 characters")
+    .max(50, "Nozzle number is too long")
+    .trim(),
+
+  tank: objectIdSchema,
+
+  machineName: zod
+    .string()
+    .max(100, "Machine name is too long")
+    .optional(),
+
+  isActive: zod.boolean().optional(),
+});
+
+export const updateNozzleSchema = zod.object({
+  nozzleNumber: zod.string().min(2, "Nozzle number must be at least 2 characters").optional(),
+  tank: objectIdSchema.optional(),
+  machineName: zod.string().optional(),
+  isActive: zod.boolean().optional(),
+});
+
+// ===============================
+// PURCHASE SCHEMA (frontend copy of backend purchase.schema.js)
+// ===============================
 
 export const purchaseItemSchema = zod.object({
   productId: objectIdSchema,

@@ -8,7 +8,6 @@ const createNozzleSchema = z.object({
     nozzleNumber: z
         .string()
         .min(2, "Nozzle number must be at least 2 characters")
-        .max(20, "Nozzle number too long")
         .trim(),
 
     tank: z
@@ -25,7 +24,6 @@ const updateNozzleSchema = z.object({
     nozzleNumber: z
         .string()
         .min(2, "Nozzle number must be at least 2 characters")
-        .max(20, "Nozzle number too long")
         .trim(),
 
     tank: z

@@ -127,8 +127,8 @@ function NozzleForm({ nozzleId, onClose, onSuccess }: NozzleFormProps) {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center p-8">
-                <i className="pi pi-spin pi-spinner text-4xl text-primary"></i>
+            <div className="flex justify-center items-center p-4">
+                <i className="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
             </div>
         );
     }
@@ -139,8 +139,9 @@ function NozzleForm({ nozzleId, onClose, onSuccess }: NozzleFormProps) {
     }));
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="px-4 pt-2 pb-4 min-h-[60vh]">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Nozzle Number */}
                 <div className="flex flex-col gap-2">
                     <label htmlFor="nozzleNumber" className="font-medium text-sm">
@@ -223,25 +224,25 @@ function NozzleForm({ nozzleId, onClose, onSuccess }: NozzleFormProps) {
                     </div>
                 )}
             </div>
-
-            {/* Form Actions */}
-            <div className="flex justify-end gap-2 mt-6">
-                <Button
-                    type="button"
-                    label="Cancel"
-                    severity="secondary"
-                    outlined
-                    onClick={onClose}
-                    disabled={isSubmitting}
-                />
-                <Button
-                    type="submit"
-                    label={isEditMode ? "Update" : "Create"}
-                    loading={isSubmitting}
-                    disabled={isSubmitting}
-                />
-            </div>
-        </form>
+                {/* Form Actions */}
+                <div className="flex justify-end gap-3 pt-3">
+                    <Button
+                        type="button"
+                        label="Cancel"
+                        severity="secondary"
+                        outlined
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                    />
+                    <Button
+                        type="submit"
+                        label={isEditMode ? "Update" : "Create"}
+                        loading={isSubmitting}
+                        disabled={isSubmitting}
+                    />
+                </div>
+            </form>
+        </div>
     );
 }
 
