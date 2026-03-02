@@ -120,25 +120,25 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center p-8">
-                <i className="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
+            <div className="flex justify-center items-center p-4">
+                <i className="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
             </div>
         );
     }
 
     return (
-        <div className="px-6 py-4">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="px-4 pt-2 pb-4 max-h-[70vh] overflow-auto">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 {/* Personal Information */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         <i className="pi pi-user text-blue-600"></i>
                         Personal Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {/* Full Name */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Full Name <span className="text-red-500">*</span>
                             </label>
@@ -196,7 +196,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                         </div>
 
                         {/* Email */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Email Address <span className="text-red-500">*</span>
                             </label>
@@ -219,7 +219,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                         </div>
 
                         {/* Phone */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Phone Number <span className="text-red-500">*</span>
                             </label>
@@ -251,7 +251,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
 
                         {/* Password - Only for Add Mode */}
                         {!isEditMode && (
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                                 <label className="text-sm font-semibold text-gray-700">
                                     Password <span className="text-red-500">*</span>
                                 </label>
@@ -276,7 +276,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                         )}
 
                         {/* Role */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Role <span className="text-red-500">*</span>
                             </label>
@@ -303,7 +303,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                         </div>
 
                         {/* Shift Type */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Shift Type <span className="text-red-500">*</span>
                             </label>
@@ -332,7 +332,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
 
                     {/* Active Status - Only for Edit Mode */}
                     {isEditMode && (
-                        <div className="flex items-center gap-2 mt-4">
+                        <div className="flex items-center gap-2 mt-3">
                             <Controller
                                 name="isActive"
                                 control={control}
@@ -352,7 +352,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                 </div>
 
                 {/* SUBMIT BUTTONS */}
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-3">
                     <Button
                         type="button"
                         label="Cancel"

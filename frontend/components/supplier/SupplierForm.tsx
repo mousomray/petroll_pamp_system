@@ -107,25 +107,25 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center p-8">
-                <i className="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
+            <div className="flex justify-center items-center p-4">
+                <i className="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
             </div>
         );
     }
 
     return (
-        <div className="px-6 py-4">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="px-4 pt-2 pb-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 {/* Supplier Information */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         <i className="pi pi-building text-blue-600"></i>
                         Supplier Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {/* Supplier Name */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Supplier Name <span className="text-red-500">*</span>
                             </label>
@@ -148,7 +148,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                         </div>
 
                         {/* Email */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Email Address <span className="text-red-500">*</span>
                             </label>
@@ -171,7 +171,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                         </div>
 
                         {/* Phone */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Phone Number <span className="text-red-500">*</span>
                             </label>
@@ -202,7 +202,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                         </div>
 
                         {/* GST ID */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 GST ID
                             </label>
@@ -227,7 +227,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                     </div>
 
                     {/* Address */}
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                         <label className="text-sm font-semibold text-gray-700">
                             Address
                         </label>
@@ -239,7 +239,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                                 className="w-full"
                                 {...register("address")}
                                 placeholder="Enter supplier address"
-                                rows={3}
+                                rows={2}
                             />
                         </div>
                         {errors.address && (
@@ -252,7 +252,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
 
                     {/* Active Status - Only for Edit Mode */}
                     {isEditMode && (
-                        <div className="flex items-center gap-2 mt-4">
+                        <div className="flex items-center gap-2 mt-3">
                             <Controller
                                 name="isActive"
                                 control={control}
@@ -272,7 +272,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                 </div>
 
                 {/* SUBMIT BUTTONS */}
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-3">
                     <Button
                         type="button"
                         label="Cancel"

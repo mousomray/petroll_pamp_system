@@ -5,6 +5,7 @@ import axiosInstance from "@/service/axios.service";
 import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import PurchaseForm from "@/components/purchase/PurchaseForm";
+import ViewDetails from "@/components/purchase/ViewDetails";
 import { Dialog } from "primereact/dialog";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -36,6 +37,8 @@ function Page() {
   const [visible, setVisible] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<any | null>(null);
   const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [detailsData, setDetailsData] = useState<any | null>(null);
   const menu = React.useRef<Menu | null>(null);
 
   const [pagination, setPagination] = useState({
@@ -99,10 +102,19 @@ function Page() {
     setVisible(true);
   };
 
-  const handleUpdate = (rowData: any) => {
-    setEditPurchaseId(rowData._id);
-    setSelectedPurchase(rowData);
-    setVisible(true);
+  const handleUpdate = async (rowData: any) => {
+    try {
+      setLoading(true);
+      const res = await axiosInstance.get(`/api/purchase/purchase-details/${rowData._id}`);
+      const data = res.data?.data || null;
+      setEditPurchaseId(rowData._id);
+      setSelectedPurchase(data);
+      setVisible(true);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to load purchase details');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const confirmDelete = (rowData: any) => {
@@ -126,9 +138,20 @@ function Page() {
   };
 
   const handleViewDetails = (rowData: any) => {
-    setSelectedPurchase(rowData);
-    // You can open a detail modal or navigate to detail page
-    toast.info("View details functionality coming soon!");
+    // fetch full details and open details dialog
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await axiosInstance.get(`/api/purchase/purchase-details/${rowData._id}`);
+        const data = res.data?.data || null;
+        setDetailsData(data);
+        setDetailsVisible(true);
+      } catch (err: any) {
+        toast.error(err?.response?.data?.message || 'Failed to load details');
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
 
   /* ================= COLUMN TEMPLATES ================= */
@@ -190,12 +213,11 @@ function Page() {
       PARTIAL: "bg-yellow-100 text-yellow-800",
       UNPAID: "bg-red-100 text-red-800",
     };
-    
+
     return (
       <span
-        className={`px-2 py-1 rounded-full text-xs font-medium ${
-          statusColors[rowData.paymentStatus] || "bg-gray-100 text-gray-800"
-        }`}
+        className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[rowData.paymentStatus] || "bg-gray-100 text-gray-800"
+          }`}
       >
         {rowData.paymentStatus}
       </span>
@@ -300,24 +322,24 @@ function Page() {
   );
 
   const EditPurchaseHeader = (
-    <div className="flex items-center gap-3 bg-gradient-to-r from-amber-500 to-orange-500 mb-2 p-3 rounded-t-lg">
-      <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
-        <i className="pi pi-shopping-cart text-white text-2xl"></i>
+    <div className="flex items-center gap-3 bg-gradient-to-r from-amber-500 to-orange-500 mb-2 p-2 rounded-t-lg">
+      <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+        <i className="pi pi-shopping-cart text-white text-xl"></i>
       </div>
       <div>
-        <h2 className="text-xl font-bold text-white">Edit Purchase</h2>
+        <h2 className="text-lg font-semibold text-white">Edit Purchase</h2>
         <p className="text-sm text-white/90">Update purchase information</p>
       </div>
     </div>
   );
 
   const AddPurchaseHeader = (
-    <div className="flex items-center gap-3 bg-gradient-to-r from-blue-500 to-indigo-600 mb-2 p-3 rounded-t-lg">
-      <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-lg">
-        <i className="pi pi-shopping-cart text-white text-2xl"></i>
+    <div className="flex items-center gap-3 bg-gradient-to-r from-blue-500 to-indigo-600 mb-2 p-2 rounded-t-lg">
+      <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+        <i className="pi pi-shopping-cart text-white text-xl"></i>
       </div>
       <div>
-        <h2 className="text-xl font-bold text-white">Add New Purchase</h2>
+        <h2 className="text-lg font-semibold text-white">Add New Purchase</h2>
         <p className="text-sm text-white/90">Create a new purchase order</p>
       </div>
     </div>
@@ -348,18 +370,18 @@ function Page() {
         >
           <Column header="Invoice" body={invoiceTemplate} />
           <Column header="Supplier" body={supplierTemplate} />
-          <Column 
-            field="purchaseDate" 
-            header="Purchase Date" 
-            body={(row: any) => formatDate(row.purchaseDate)} 
+          <Column
+            field="purchaseDate"
+            header="Purchase Date"
+            body={(row: any) => formatDate(row.purchaseDate)}
           />
           <Column header="Items" body={itemsTemplate} />
           <Column header="Amount" body={amountTemplate} />
           <Column header="Payment Status" body={paymentStatusTemplate} />
           <Column header="Method" body={paymentMethodTemplate} />
-          <Column 
-            header="Created" 
-            body={(row: any) => formatDate(row.createdAt)} 
+          <Column
+            header="Created"
+            body={(row: any) => formatDate(row.createdAt)}
           />
           <Column header="Actions" body={actionTemplate} />
         </DataTable>
@@ -371,6 +393,7 @@ function Page() {
           header={editPurchaseId ? EditPurchaseHeader : AddPurchaseHeader}
           visible={visible}
           style={{ width: "70vw" }}
+          contentStyle={{ maxHeight: '90vh', overflow: 'auto' }}
           onHide={() => {
             setVisible(false);
             setEditPurchaseId(null);
@@ -379,6 +402,8 @@ function Page() {
         >
           <div className="p-4">
             <PurchaseForm
+              editId={editPurchaseId || undefined}
+              initialData={selectedPurchase || undefined}
               onClose={() => {
                 setVisible(false);
                 setEditPurchaseId(null);
@@ -389,6 +414,29 @@ function Page() {
                 setEditPurchaseId(null);
                 setSelectedPurchase(null);
                 await purchaseDataGet();
+              }}
+            />
+          </div>
+        </Dialog>
+
+        {/* Details Dialog */}
+        <Dialog
+          header={<div className="flex items-center gap-3"><i className="pi pi-eye text-xl text-blue-600" /> <div className="text-lg font-semibold">Purchase Details</div></div>}
+          visible={detailsVisible}
+          style={{ width: "60vw" }}
+          contentStyle={{ maxHeight: '80vh', overflow: 'auto' }}
+          onHide={() => {
+            setDetailsVisible(false);
+            setDetailsData(null);
+          }}
+        >
+          <div className="p-4">
+            <ViewDetails
+              purchaseId={detailsData?._id}
+              initialData={detailsData || undefined}
+              onClose={() => {
+                setDetailsVisible(false);
+                setDetailsData(null);
               }}
             />
           </div>

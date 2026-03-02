@@ -28,34 +28,31 @@ const createPurchase = async (req, res) => {
         await session.startTransaction();
 
         const userId = req.user._id;
+
         const {
             supplierId,
+            invoiceNo,   
             purchaseDate,
             paymentMethod = "CASH",
             items
         } = req.body;
 
-        if (!purchaseDate) {
-            throw new Error("Purchase date is required");
-        }
-
-        if (!items || !Array.isArray(items) || items.length === 0) {
+        if (!supplierId) throw new Error("Supplier required");
+        if (!invoiceNo) throw new Error("Invoice number required");  // ✅ required
+        if (!purchaseDate) throw new Error("Purchase date required");
+        if (!items || !Array.isArray(items) || items.length === 0)
             throw new Error("Purchase items required");
-        }
 
-        const financialYear = getFinancialYearFromDate(purchaseDate);
+        // ============================
+        // ✅ DUPLICATE INVOICE CHECK
+        // ============================
+        const existingInvoice = await PurchaseModel.findOne({
+            userId,
+            invoiceNo
+        }).session(session);
 
-        // ==============================
-        // INVOICE GENERATION
-        // ==============================
-        const lastPurchase = await PurchaseModel.findOne({ userId })
-            .sort({ createdAt: -1 })
-            .session(session);
-
-        let invoiceNo = "INV-1";
-        if (lastPurchase) {
-            const lastNumber = parseInt(lastPurchase.invoiceNo.split("-")[1]) || 0;
-            invoiceNo = `INV-${lastNumber + 1}`;
+        if (existingInvoice) {
+            throw new Error("Invoice number already exists");
         }
 
         let subTotal = 0;
@@ -66,14 +63,13 @@ const createPurchase = async (req, res) => {
 
         const purchaseItemsData = [];
 
-        // ===================================
-        // 🔁 PROCESS ITEMS
-        // ===================================
+        // ============================
+        // PROCESS ITEMS
+        // ============================
         for (const item of items) {
 
-            if (!item.productId || !item.quantity || item.quantity <= 0) {
+            if (!item.productId || !item.quantity || item.quantity <= 0)
                 throw new Error("Invalid product or quantity");
-            }
 
             const product = await Product.findOne({
                 _id: item.productId,
@@ -82,87 +78,133 @@ const createPurchase = async (req, res) => {
 
             if (!product) throw new Error("Product not found");
 
-            // 🔥 SAFE COST PRICE
-            const costPrice = product.costPrice ?? product.purchasePrice ?? 0;
-
-            if (!costPrice) {
+            const costPrice = product.costPrice ?? 0;
+            if (!costPrice)
                 throw new Error(`Cost price missing for ${product.name}`);
-            }
-
-            const baseAmount = item.quantity * costPrice;
 
             const cgstPercent = product.cgstPercent || 0;
             const sgstPercent = product.sgstPercent || 0;
             const igstPercent = product.igstPercent || 0;
 
-            const cgstAmount = (baseAmount * cgstPercent) / 100;
-            const sgstAmount = (baseAmount * sgstPercent) / 100;
-            const igstAmount = (baseAmount * igstPercent) / 100;
-
-            const totalTax = cgstAmount + sgstAmount + igstAmount;
-            const itemTotal = baseAmount + totalTax;
-
+            const baseAmount = item.quantity * costPrice;
             subTotal += baseAmount;
-            totalCgst += cgstAmount;
-            totalSgst += sgstAmount;
-            totalIgst += igstAmount;
-            grandTotal += itemTotal;
 
-            purchaseItemsData.push({
-                productId: product._id,
-                quantity: item.quantity,
-                costPrice: Number(costPrice),
-                cgstPercent,
-                sgstPercent,
-                igstPercent,
-                cgstAmount,
-                sgstAmount,
-                igstAmount,
-                taxAmount: totalTax,
-                total: Number(itemTotal)
-            });
+            // ============================
+            // 🛢 TANK PRODUCT
+            // ============================
+            if (product.tankIds && product.tankIds.length > 0) {
 
-            // ===================================
+                if (!item.tankDistributions || item.tankDistributions.length === 0)
+                    throw new Error(`Tank distribution required for ${product.name}`);
+
+                const totalDistributed = item.tankDistributions.reduce(
+                    (sum, t) => sum + Number(t.quantity),
+                    0
+                );
+
+                if (totalDistributed !== item.quantity)
+                    throw new Error(`Tank quantity mismatch for ${product.name}`);
+
+                for (const dist of item.tankDistributions) {
+
+                    if (!dist.tankId || !dist.quantity || dist.quantity <= 0)
+                        throw new Error("Invalid tank distribution");
+
+                    const tank = await Tank.findOne({
+                        _id: dist.tankId,
+                        userId,
+                        isActive: true
+                    }).session(session);
+
+                    if (!tank)
+                        throw new Error("Tank not found");
+
+                    if (tank.currentQuantity + dist.quantity > tank.capacity)
+                        throw new Error(
+                            `Tank capacity exceeded for ${tank.name}`
+                        );
+
+                    tank.currentQuantity += dist.quantity;
+                    await tank.save({ session });
+
+                    const splitBase = dist.quantity * costPrice;
+                    const cgstAmount = (splitBase * cgstPercent) / 100;
+                    const sgstAmount = (splitBase * sgstPercent) / 100;
+                    const igstAmount = (splitBase * igstPercent) / 100;
+                    const totalTax = cgstAmount + sgstAmount + igstAmount;
+                    const splitTotal = splitBase + totalTax;
+
+                    totalCgst += cgstAmount;
+                    totalSgst += sgstAmount;
+                    totalIgst += igstAmount;
+                    grandTotal += splitTotal;
+
+                    purchaseItemsData.push({
+                        productId: product._id,
+                        quantity: dist.quantity,
+                        costPrice,
+                        cgstPercent,
+                        sgstPercent,
+                        igstPercent,
+                        cgstAmount,
+                        sgstAmount,
+                        igstAmount,
+                        taxAmount: totalTax,
+                        total: splitTotal,
+                        tankId: dist.tankId
+                    });
+                }
+
+            } else {
+
+                // ============================
+                // 📦 NON-TANK PRODUCT
+                // ============================
+
+                const cgstAmount = (baseAmount * cgstPercent) / 100;
+                const sgstAmount = (baseAmount * sgstPercent) / 100;
+                const igstAmount = (baseAmount * igstPercent) / 100;
+                const totalTax = cgstAmount + sgstAmount + igstAmount;
+                const itemTotal = baseAmount + totalTax;
+
+                totalCgst += cgstAmount;
+                totalSgst += sgstAmount;
+                totalIgst += igstAmount;
+                grandTotal += itemTotal;
+
+                purchaseItemsData.push({
+                    productId: product._id,
+                    quantity: item.quantity,
+                    costPrice,
+                    cgstPercent,
+                    sgstPercent,
+                    igstPercent,
+                    cgstAmount,
+                    sgstAmount,
+                    igstAmount,
+                    taxAmount: totalTax,
+                    total: itemTotal,
+                    tankId: null
+                });
+            }
+
+            // ============================
             // 📦 UPDATE CURRENT STOCK
-            // ===================================
+            // ============================
             await CurrentStock.updateOne(
                 { userId, productId: product._id },
                 { $inc: { quantity: item.quantity } },
                 { upsert: true, session }
             );
-
-            // ===================================
-            // 🛢 UPDATE TANK (product er moddhe tankId ache)
-            // ===================================
-            if (!product.tankIds) {
-                throw new Error(`Tank not assigned to product ${product.name}`);
-            }
-
-            const tank = await Tank.findOne({
-                _id: product.tankIds[0],
-                userId,
-                isActive: true
-            }).session(session);
-
-            if (!tank) throw new Error("Assigned tank not found");
-
-            if (tank.currentQuantity + item.quantity > tank.capacity) {
-                throw new Error(
-                    `Tank capacity exceeded for tank ${tank.name}`
-                );
-            }
-
-            tank.currentQuantity += item.quantity;
-            await tank.save({ session });
         }
 
-        // ===================================
-        // 💾 CREATE PURCHASE
-        // ===================================
+        // ============================
+        // CREATE PURCHASE
+        // ============================
         const purchaseDoc = await PurchaseModel.create([{
             userId,
             supplierId,
-            invoiceNo,
+            invoiceNo, // ✅ manual invoice
             purchaseDate,
             paymentStatus: "PAID",
             paymentMethod,
@@ -171,7 +213,6 @@ const createPurchase = async (req, res) => {
             subTotal,
             cgstAmount: totalCgst,
             sgstAmount: totalSgst,
-            igstAmount: totalIgst,
             taxAmount: totalCgst + totalSgst + totalIgst,
             totalAmount: grandTotal,
             createdBy: userId
@@ -185,52 +226,6 @@ const createPurchase = async (req, res) => {
 
         await PurchaseItemModel.insertMany(purchaseItemsData, { session });
 
-        // ===================================
-        // 📊 FINANCIAL STOCK UPDATE
-        // ===================================
-        let financialStock = await FinancialStock.findOne({
-            userId,
-            financialYear
-        }).session(session);
-
-        if (!financialStock) {
-            const created = await FinancialStock.create([{
-                userId,
-                financialYear,
-                products: []
-            }], { session });
-
-            financialStock = created[0];
-        }
-
-        for (const item of purchaseItemsData) {
-
-            let productStock = financialStock.products.find(p =>
-                p.productId.toString() === item.productId.toString()
-            );
-
-            if (!productStock) {
-                financialStock.products.push({
-                    productId: item.productId,
-                    openingStock: 0,
-                    totalPurchase: item.quantity,
-                    totalSale: 0,
-                    closingStock: item.quantity
-                });
-            } else {
-                productStock.totalPurchase += item.quantity;
-                productStock.closingStock =
-                    productStock.openingStock +
-                    productStock.totalPurchase -
-                    productStock.totalSale;
-            }
-        }
-
-        await financialStock.save({ session });
-
-        // ===================================
-        // ✅ COMMIT
-        // ===================================
         await session.commitTransaction();
         session.endSession();
 
@@ -240,7 +235,6 @@ const createPurchase = async (req, res) => {
             data: {
                 invoiceNo,
                 purchaseId,
-                financialYear,
                 totalAmount: grandTotal
             }
         });
@@ -249,8 +243,6 @@ const createPurchase = async (req, res) => {
 
         await session.abortTransaction();
         session.endSession();
-
-        console.error("Error creating purchase:", error);
 
         return res.status(400).json({
             success: false,
@@ -391,7 +383,363 @@ const listPurchases = async (req, res) => {
     }
 };
 
+const getPurchaseDetails = async (req, res) => {
+    try {
+        const userId = new mongoose.Types.ObjectId(req.user._id);
+        const purchaseId = new mongoose.Types.ObjectId(req.params.id);
+
+        const pipeline = [
+
+            {
+                $match: {
+                    _id: purchaseId,
+                    userId
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "suppliers",
+                    localField: "supplierId",
+                    foreignField: "_id",
+                    as: "supplier"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$supplier",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "purchaseitems",
+                    let: { purchaseId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$purchaseId", "$$purchaseId"]
+                                }
+                            }
+                        },
+
+                        // PRODUCT JOIN
+                        {
+                            $lookup: {
+                                from: "products",
+                                localField: "productId",
+                                foreignField: "_id",
+                                as: "product"
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$product",
+                                preserveNullAndEmptyArrays: true
+                            }
+                        },
+
+                        // TANK JOIN
+                        {
+                            $lookup: {
+                                from: "tanks",
+                                localField: "tankId",
+                                foreignField: "_id",
+                                as: "tank"
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$tank",
+                                preserveNullAndEmptyArrays: true
+                            }
+                        }
+                    ],
+                    as: "items"
+                }
+            },
+
+            {
+                $addFields: {
+                    totalItems: { $size: "$items" }
+                }
+            }
+        ];
+
+        const result = await PurchaseModel.aggregate(pipeline);
+
+        if (!result.length) {
+            return res.status(404).json({
+                success: false,
+                message: "Purchase not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Purchase details fetched successfully",
+            data: result[0]
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+const updatePurchase = async (req, res) => {
+    const session = await mongoose.startSession();
+
+    try {
+        await session.startTransaction();
+
+        const userId = req.user._id;
+        const purchaseId = req.params.id;
+
+        const {
+            supplierId,
+            purchaseDate,
+            paymentMethod = "CASH",
+            items
+        } = req.body;
+
+        if (!supplierId) throw new Error("Supplier required");
+        if (!purchaseDate) throw new Error("Purchase date required");
+        if (!items || !Array.isArray(items) || items.length === 0)
+            throw new Error("Purchase items required");
+
+        // =========================
+        // FIND OLD PURCHASE
+        // =========================
+        const existingPurchase = await PurchaseModel.findOne({
+            _id: purchaseId,
+            userId
+        }).session(session);
+
+        if (!existingPurchase)
+            throw new Error("Purchase not found");
+
+        // =========================
+        // GET OLD ITEMS
+        // =========================
+        const oldItems = await PurchaseItemModel.find({
+            purchaseId
+        }).session(session);
+
+        // =========================
+        // REVERSE OLD STOCK & TANK
+        // =========================
+        for (const oldItem of oldItems) {
+
+            // Reverse Current Stock
+            await CurrentStock.updateOne(
+                { userId, productId: oldItem.productId },
+                { $inc: { quantity: -oldItem.quantity } },
+                { session }
+            );
+
+            // Reverse Tank Quantity if exists
+            if (oldItem.tankId) {
+                const tank = await Tank.findOne({
+                    _id: oldItem.tankId,
+                    userId
+                }).session(session);
+
+                if (tank) {
+                    tank.currentQuantity -= oldItem.quantity;
+
+                    if (tank.currentQuantity < 0)
+                        throw new Error("Tank quantity mismatch during update");
+
+                    await tank.save({ session });
+                }
+            }
+        }
+
+        // Delete Old Purchase Items
+        await PurchaseItemModel.deleteMany(
+            { purchaseId },
+            { session }
+        );
+
+        // =========================
+        // NOW RE-CREATE NEW DATA
+        // =========================
+        let subTotal = 0;
+        let totalCgst = 0;
+        let totalSgst = 0;
+        let totalIgst = 0;
+        let grandTotal = 0;
+
+        const purchaseItemsData = [];
+
+        for (const item of items) {
+
+            if (!item.productId || !item.quantity || item.quantity <= 0)
+                throw new Error("Invalid product or quantity");
+
+            const product = await Product.findOne({
+                _id: item.productId,
+                userId
+            }).session(session);
+
+            if (!product) throw new Error("Product not found");
+
+            const costPrice = product.costPrice ?? 0;
+            if (!costPrice)
+                throw new Error(`Cost price missing for ${product.name}`);
+
+            const cgstPercent = product.cgstPercent || 0;
+            const sgstPercent = product.sgstPercent || 0;
+            const igstPercent = product.igstPercent || 0;
+
+            const baseAmount = item.quantity * costPrice;
+            subTotal += baseAmount;
+
+            // ======================
+            // TANK PRODUCT
+            // ======================
+            if (product.tankIds && product.tankIds.length > 0) {
+
+                if (!item.tankDistributions || item.tankDistributions.length === 0)
+                    throw new Error(`Tank distribution required`);
+
+                const totalDistributed = item.tankDistributions.reduce(
+                    (sum, t) => sum + Number(t.quantity),
+                    0
+                );
+
+                if (totalDistributed !== item.quantity)
+                    throw new Error("Tank quantity mismatch");
+
+                for (const dist of item.tankDistributions) {
+
+                    const tank = await Tank.findOne({
+                        _id: dist.tankId,
+                        userId,
+                        isActive: true
+                    }).session(session);
+
+                    if (!tank)
+                        throw new Error("Tank not found");
+
+                    if (tank.currentQuantity + dist.quantity > tank.capacity)
+                        throw new Error("Tank capacity exceeded");
+
+                    tank.currentQuantity += dist.quantity;
+                    await tank.save({ session });
+
+                    const splitBase = dist.quantity * costPrice;
+                    const cgstAmount = (splitBase * cgstPercent) / 100;
+                    const sgstAmount = (splitBase * sgstPercent) / 100;
+                    const igstAmount = (splitBase * igstPercent) / 100;
+                    const totalTax = cgstAmount + sgstAmount + igstAmount;
+                    const splitTotal = splitBase + totalTax;
+
+                    totalCgst += cgstAmount;
+                    totalSgst += sgstAmount;
+                    totalIgst += igstAmount;
+                    grandTotal += splitTotal;
+
+                    purchaseItemsData.push({
+                        purchaseId,
+                        productId: product._id,
+                        quantity: dist.quantity,
+                        costPrice,
+                        cgstPercent,
+                        sgstPercent,
+                        igstPercent,
+                        cgstAmount,
+                        sgstAmount,
+                        igstAmount,
+                        taxAmount: totalTax,
+                        total: splitTotal,
+                        tankId: dist.tankId
+                    });
+                }
+
+            } else {
+
+                const cgstAmount = (baseAmount * cgstPercent) / 100;
+                const sgstAmount = (baseAmount * sgstPercent) / 100;
+                const igstAmount = (baseAmount * igstPercent) / 100;
+                const totalTax = cgstAmount + sgstAmount + igstAmount;
+                const itemTotal = baseAmount + totalTax;
+
+                totalCgst += cgstAmount;
+                totalSgst += sgstAmount;
+                totalIgst += igstAmount;
+                grandTotal += itemTotal;
+
+                purchaseItemsData.push({
+                    purchaseId,
+                    productId: product._id,
+                    quantity: item.quantity,
+                    costPrice,
+                    cgstPercent,
+                    sgstPercent,
+                    igstPercent,
+                    cgstAmount,
+                    sgstAmount,
+                    igstAmount,
+                    taxAmount: totalTax,
+                    total: itemTotal,
+                    tankId: null
+                });
+            }
+
+            // Update Current Stock
+            await CurrentStock.updateOne(
+                { userId, productId: product._id },
+                { $inc: { quantity: item.quantity } },
+                { upsert: true, session }
+            );
+        }
+
+        // =========================
+        // UPDATE MAIN PURCHASE DOC
+        // =========================
+        existingPurchase.supplierId = supplierId;
+        existingPurchase.purchaseDate = purchaseDate;
+        existingPurchase.paymentMethod = paymentMethod;
+        existingPurchase.subTotal = subTotal;
+        existingPurchase.cgstAmount = totalCgst;
+        existingPurchase.sgstAmount = totalSgst;
+        existingPurchase.taxAmount = totalCgst + totalSgst + totalIgst;
+        existingPurchase.totalAmount = grandTotal;
+        existingPurchase.paidAmount = grandTotal;
+        existingPurchase.dueAmount = 0;
+
+        await existingPurchase.save({ session });
+
+        await PurchaseItemModel.insertMany(purchaseItemsData, { session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(200).json({
+            success: true,
+            message: "Purchase updated successfully"
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 module.exports = {
     createPurchase,
-    listPurchases
+    listPurchases,
+    getPurchaseDetails,
+    updatePurchase
 };

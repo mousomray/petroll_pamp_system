@@ -152,25 +152,25 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center p-8">
-                <i className="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
+            <div className="flex justify-center items-center p-4">
+                <i className="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
             </div>
         );
     }
 
     return (
-        <div className="px-6 py-4">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="px-4 pt-2 pb-4 min-h-[80vh]">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 {/* Basic Information */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         <i className="pi pi-box text-blue-600"></i>
                         Basic Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {/* Product Name */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Product Name <span className="text-red-500">*</span>
                             </label>
@@ -193,7 +193,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                         </div>
 
                         {/* Product Type */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Product Type <span className="text-red-500">*</span>
                             </label>
@@ -220,7 +220,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                         </div>
 
                         {/* Unit */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Unit <span className="text-red-500">*</span>
                             </label>
@@ -248,7 +248,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
 
                         {/* Tanks (Only for FUEL type) */}
                         {productType === "FUEL" && (
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                                 <label className="text-sm font-semibold text-gray-700">
                                     Tanks
                                 </label>
@@ -281,15 +281,15 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                 </div>
 
                 {/* Pricing Information */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         <i className="pi pi-dollar text-green-600"></i>
                         Pricing Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {/* Cost Price */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Cost Price <span className="text-red-500">*</span>
                             </label>
@@ -324,7 +324,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                         </div>
 
                         {/* Selling Price */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Selling Price <span className="text-red-500">*</span>
                             </label>
@@ -361,15 +361,15 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                 </div>
 
                 {/* Stock Information */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         <i className="pi pi-database text-orange-600"></i>
                         Stock Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {/* Minimum Stock Alert */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 Minimum Stock Alert
                             </label>
@@ -406,15 +406,38 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                 </div>
 
                 {/* GST Configuration */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                         <i className="pi pi-percentage text-purple-600"></i>
                         GST Configuration
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* HSN Code (moved before CGST/SGST) */}
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-gray-700">
+                                HSN Code
+                            </label>
+                            <div className="p-inputgroup">
+                                <span className="p-inputgroup-addon bg-blue-50">
+                                    <i className="pi pi-code text-blue-600"></i>
+                                </span>
+                                <InputText
+                                    className="w-full"
+                                    {...register("hsnCode")}
+                                    placeholder="Enter HSN code"
+                                />
+                            </div>
+                            {errors.hsnCode && (
+                                <small className="text-red-500 flex items-center gap-1">
+                                    <i className="pi pi-exclamation-circle"></i>
+                                    {errors.hsnCode.message}
+                                </small>
+                            )}
+                        </div>
+
                         {/* CGST Percent */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 CGST %
                             </label>
@@ -451,7 +474,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                         </div>
 
                         {/* SGST Percent */}
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
                                 SGST %
                             </label>
@@ -486,35 +509,12 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                                 </small>
                             )}
                         </div>
-
-                        {/* HSN Code */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-700">
-                                HSN Code
-                            </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-code text-blue-600"></i>
-                                </span>
-                                <InputText
-                                    className="w-full"
-                                    {...register("hsnCode")}
-                                    placeholder="Enter HSN code"
-                                />
-                            </div>
-                            {errors.hsnCode && (
-                                <small className="text-red-500 flex items-center gap-1">
-                                    <i className="pi pi-exclamation-circle"></i>
-                                    {errors.hsnCode.message}
-                                </small>
-                            )}
-                        </div>
                     </div>
                 </div>
 
                 {/* Active Status - Only for Edit Mode */}
                 {isEditMode && (
-                    <div className="flex items-center gap-2 mt-4">
+                    <div className="flex items-center gap-2 mt-3">
                         <Controller
                             name="isActive"
                             control={control}
@@ -533,7 +533,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                 )}
 
                 {/* SUBMIT BUTTONS */}
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-3">
                     <Button
                         type="button"
                         label="Cancel"
