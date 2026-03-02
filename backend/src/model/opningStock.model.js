@@ -15,13 +15,13 @@ const opningStockSchema = new mongoose.Schema({
         required: true,
         index: true
     },
-    
+
     financialYear: {
         type: String,
         required: true
     },
 
-   openingStock: {
+    openingStock: {
         type: Number,
         default: 0
     },
@@ -40,10 +40,10 @@ const opningStockSchema = new mongoose.Schema({
         type: Number,
         default: 0
     }
-})
+}, { timestamps: true })
 
 
 
-const OpningStockModle = mongoose.model("OpningStock",opningStockSchema)
+const OpningStockModle = mongoose.model("OpningStock", opningStockSchema)
 
 module.exports = OpningStockModle;

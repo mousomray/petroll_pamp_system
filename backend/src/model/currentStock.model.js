@@ -30,4 +30,6 @@ currentStockSchema.index(
     { unique: true }
 );
 
-module.exports = mongoose.model("CurrentStock", currentStockSchema);
+const CurrentStockModel  = mongoose.model("CurrentStock", currentStockSchema);
+
+module.exports = CurrentStockModel;

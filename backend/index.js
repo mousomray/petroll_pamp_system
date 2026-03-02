@@ -34,6 +34,7 @@ const productFinancialStockRoutes = require("./src/routes/productFinancialStock.
 const supplierRoutes = require("./src/routes/supplier.routes.js")
 const tankRoutes = require("./src/routes/tank.routes.js")
 const purchaseRoutes = require("./src/routes/purchase.routes.js")
+const opningStock = require("./src/routes/openingStock.routes.js")
 
 app.use("/api/register", registerRoutes)
 app.use("/api/login", loginRoutes)
@@ -43,6 +44,7 @@ app.use("/api/financial-stock", productFinancialStockRoutes)
 app.use("/api/supplier",supplierRoutes)
 app.use("/api/tank", tankRoutes)
 app.use("/api/purchase", purchaseRoutes)
+app.use("/api/opening-stock",opningStock)
 
 
 const port = process.env.PORT
