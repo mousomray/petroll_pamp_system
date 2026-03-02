@@ -1,0 +1,712 @@
+const mongoose = require("mongoose");
+const { ZodError } = require("zod");
+
+const { createOpeningStockSchema } = require("../schema/openingStock.schema");
+
+const OpningStockModle = require("../model/opningStock.model");
+const Product = require("../model/product.model");
+const Tank = require("../model/tank.model");
+const CurrentStock = require("../model/currentStock.model");
+
+
+const getFinancialYear = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+
+  return month >= 4
+    ? `${year}-${year + 1}`
+    : `${year - 1}-${year}`;
+};
+
+ function getNextFinancialYear(date = new Date()) {
+  const currentFY = getFinancialYear(date);
+
+  const [startYear] = currentFY.split("-").map(Number);
+
+  return `${startYear + 1}-${startYear + 2}`;
+}
+
+
+const createOpeningStock = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { products } = createOpeningStockSchema.parse(req.body);
+
+    const userId = req.user.id;
+    const financialYear = getFinancialYear();
+
+    for (const item of products) {
+      const { productId, openingStock, tanks = [] } = item;
+
+      // ===============================
+      // CHECK PRODUCT
+      // ===============================
+      const product = await Product.findOne({
+        _id: productId,
+        userId
+      }).session(session);
+
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
+      // ===============================
+      // PREVENT DUPLICATE OPENING STOCK
+      // ===============================
+      const existing = await OpningStockModle.findOne({
+        userId,
+        productId,
+        financialYear
+      }).session(session);
+
+      if (existing) {
+        throw new Error(
+          `Opening stock already exists for ${product.name}`
+        );
+      }
+
+      // ===============================
+      // FUEL LOGIC
+      // ===============================
+      if (product.type === "FUEL") {
+
+        // ✅ If opening stock is 0 → tanks optional but if provided must match
+        if (openingStock > 0 && !tanks.length) {
+          throw new Error(
+            `Tank distribution required for ${product.name}`
+          );
+        }
+
+        // Prevent duplicate tankIds
+        const tankIds = tanks.map(t => t.tankId.toString());
+        const uniqueTankIds = new Set(tankIds);
+        if (tankIds.length !== uniqueTankIds.size) {
+          throw new Error("Duplicate tanks are not allowed");
+        }
+
+        const totalTankQty = tanks.reduce(
+          (sum, t) => sum + t.quantity,
+          0
+        );
+
+        if (totalTankQty !== openingStock) {
+          throw new Error(
+            `Tank quantity mismatch for ${product.name}`
+          );
+        }
+
+        // Fetch all tanks at once (better performance)
+        const tankDocs = await Tank.find({
+          _id: { $in: tankIds },
+          userId
+        }).session(session);
+
+        if (tankDocs.length !== tankIds.length) {
+          throw new Error("One or more tanks are invalid");
+        }
+
+        for (const tank of tankDocs) {
+          const tankData = tanks.find(
+            t => t.tankId.toString() === tank._id.toString()
+          );
+
+          if (
+            tank.capacity &&
+            tankData.quantity > tank.capacity
+          ) {
+            throw new Error(
+              `Tank capacity exceeded (${tank.name})`
+            );
+          }
+
+          tank.currentQuantity = tankData.quantity;
+          await tank.save({ session });
+        }
+      } else {
+        // ✅ NON FUEL should not receive tanks
+        if (tanks.length) {
+          throw new Error(
+            `Tanks not allowed for non-fuel product (${product.name})`
+          );
+        }
+      }
+
+      // ===============================
+      // CREATE OPENING STOCK
+      // ===============================
+      await OpningStockModle.create(
+        [{
+          userId,
+          productId,
+          financialYear,
+          openingStock,
+          closingStock: openingStock
+        }],
+        { session }
+      );
+
+      // ===============================
+      // UPDATE CURRENT STOCK
+      // ===============================
+      await CurrentStock.findOneAndUpdate(
+        { userId, productId },
+        { $set: { quantity: openingStock } },
+        { upsert: true, new: true, session }
+      );
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      success: true,
+      message: "Opening stock created successfully"
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.issues.map((err) => ({
+          field: err.path.join("."),
+          message: err.message
+        }))
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Internal server error"
+    });
+  }
+};
+
+const getOpeningStockById = async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const { id } = req.params;
+
+    const pipeline = [
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(id),
+          userId: userId
+        }
+      },
+
+      // ✅ Join Product
+      {
+        $lookup: {
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+      { $unwind: "$product" },
+
+     
+      {
+        $lookup: {
+          from: "tanks",
+          localField: "productId",
+          foreignField: "productId",
+          as: "tanks"
+        }
+      },
+
+      
+      {
+        $addFields: {
+          tanks: {
+            $filter: {
+              input: "$tanks",
+              as: "tank",
+              cond: { $eq: ["$$tank.userId", userId] }
+            }
+          }
+        }
+      },
+
+     
+      {
+        $addFields: {
+          tankCount: { $size: "$tanks" }
+        }
+      },
+
+      
+      {
+        $project: {
+          financialYear: 1,
+          openingStock: 1,
+          closingStock: 1,
+          totalPurchase: 1,
+          totalSale: 1,
+          createdAt: 1,
+          updatedAt: 1,
+
+          product: {
+            _id: "$product._id",
+            name: "$product.name",
+            type: "$product.type",
+            unit: "$product.unit"
+          },
+
+          tankCount: 1,
+          tanks: {
+            _id: 1,
+            name: 1,
+            capacity: 1,
+            currentQuantity: 1
+          }
+        }
+      }
+    ];
+
+    const result = await OpningStockModle.aggregate(pipeline);
+
+    if (!result.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Opening stock not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result[0]
+    });
+
+  } catch (error) {
+    console.error("Error fetching opening stock:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+
+const updateOpeningStock = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    // ✅ Parse request
+    const { products } = createOpeningStockSchema.parse(req.body);
+
+    if (products.length !== 1) {
+      throw new Error("Update requires exactly one product");
+    }
+
+    const { openingStock, tanks = [] } = products[0];
+
+    // ===============================
+    // FIND EXISTING STOCK
+    // ===============================
+    const stock = await OpningStockModle.findOne({
+      _id: id,
+      userId
+    }).session(session);
+
+    if (!stock) {
+      throw new Error("Opening stock not found");
+    }
+
+    // ===============================
+    // GET PRODUCT
+    // ===============================
+    const product = await Product.findOne({
+      _id: stock.productId,
+      userId
+    }).session(session);
+
+    if (!product) {
+      throw new Error("Product not found");
+    }
+
+    // ===============================
+    // FUEL PRODUCT LOGIC
+    // ===============================
+    if (product.type === "FUEL") {
+
+      if (openingStock > 0 && !tanks.length) {
+        throw new Error("Tank distribution required");
+      }
+
+      const tankIds = tanks.map(t => t.tankId.toString());
+      const uniqueTankIds = new Set(tankIds);
+
+      if (tankIds.length !== uniqueTankIds.size) {
+        throw new Error("Duplicate tanks are not allowed");
+      }
+
+      const totalTankQty = tanks.reduce(
+        (sum, t) => sum + t.quantity,
+        0
+      );
+
+      if (totalTankQty !== openingStock) {
+        throw new Error("Tank quantity mismatch with openingStock");
+      }
+
+      // Reset existing tanks
+      await Tank.updateMany(
+        { userId, productId: stock.productId },
+        { $set: { currentQuantity: 0 } },
+        { session }
+      );
+
+      // Fetch tanks in one query
+      const tankDocs = await Tank.find({
+        _id: { $in: tankIds },
+        userId,
+        productId: stock.productId
+      }).session(session);
+
+      if (tankDocs.length !== tankIds.length) {
+        throw new Error("One or more tanks are invalid");
+      }
+
+      for (const tank of tankDocs) {
+        const tankData = tanks.find(
+          t => t.tankId.toString() === tank._id.toString()
+        );
+
+        if (
+          tank.capacity &&
+          tankData.quantity > tank.capacity
+        ) {
+          throw new Error(
+            `Tank capacity exceeded (${tank.name})`
+          );
+        }
+
+        tank.currentQuantity = tankData.quantity;
+        await tank.save({ session });
+      }
+
+    } else {
+      // NON FUEL should not receive tanks
+      if (tanks.length) {
+        throw new Error(
+          `Tanks not allowed for non-fuel product (${product.name})`
+        );
+      }
+    }
+
+    // ===============================
+    // UPDATE STOCK
+    // ===============================
+    stock.openingStock = openingStock;
+    stock.closingStock = openingStock;
+    await stock.save({ session });
+
+    // ===============================
+    // UPDATE CURRENT STOCK
+    // ===============================
+    await CurrentStock.findOneAndUpdate(
+      { userId, productId: stock.productId },
+      { $set: { quantity: openingStock } },
+      { upsert: true, session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      success: true,
+      message: "Opening stock updated successfully"
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.issues.map((err) => ({
+          field: err.path.join("."),
+          message: err.message
+        }))
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Internal server error"
+    });
+  }
+};
+
+const deleteOpeningStock = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const stock = await OpningStockModle.findOne({
+      _id: id,
+      userId
+    }).session(session);
+
+    if (!stock) {
+      throw new Error("Opening stock not found");
+    }
+
+    const product = await Product.findOne({
+      _id: stock.productId,
+      userId
+    }).session(session);
+
+    if (!product) {
+      throw new Error("Product not found");
+    }
+
+    // ✅ Reset tanks only if FUEL
+    if (product.type === "FUEL") {
+      await Tank.updateMany(
+        { userId, productId: stock.productId },
+        { $set: { currentQuantity: 0 } },
+        { session }
+      );
+    }
+
+    // ✅ Reset current stock
+    await CurrentStock.findOneAndUpdate(
+      { userId, productId: stock.productId },
+      { $set: { quantity: 0 } },
+      { session }
+    );
+
+    await stock.deleteOne({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      success: true,
+      message: "Opening stock deleted successfully"
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Internal server error"
+    });
+  }
+};
+
+const getOpeningStocks = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+
+    let page = parseInt(req.query.page) || 1;
+    let limit =
+      parseInt(req.query.limit) ||
+      parseInt(process.env.DEFAULT_PAGE_SIZE) ||
+      10;
+
+    const search = req.query.search || "";
+    const financialYear = req.query.financialYear || "";
+
+    const matchStage = {
+      userId: new mongoose.Types.ObjectId(userId)
+    };
+
+    // ✅ Financial Year Filter
+    if (financialYear) {
+      matchStage.financialYear = financialYear;
+    }
+
+    const pipeline = [
+      { $match: matchStage },
+
+      // ✅ Join Product
+      {
+        $lookup: {
+          from: "products",
+          localField: "productId",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+      { $unwind: "$product" },
+
+      // ✅ Search by Product Name
+      ...(search
+        ? [
+          {
+            $match: {
+              "product.name": { $regex: search, $options: "i" }
+            }
+          }
+        ]
+        : []),
+
+      {
+        $project: {
+          financialYear: 1,
+          openingStock: 1,
+          closingStock: 1,
+          createdAt: 1,
+
+          productId: "$product._id",
+          productName: "$product.name",
+          productUnit: "$product.unit",
+          productType: "$product.type"
+        }
+      },
+
+      { $sort: { createdAt: -1 } },
+
+      {
+        $facet: {
+          data: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit }
+          ],
+          totalCount: [
+            { $count: "count" }
+          ]
+        }
+      }
+    ];
+
+    const result = await OpningStockModle.aggregate(pipeline);
+
+    const stocks = result[0].data;
+    const totalRecords = result[0].totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    return res.status(200).json({
+      success: true,
+      page,
+      limit,
+      totalPages,
+      totalRecords,
+      stocks: stocks
+    });
+
+  } catch (error) {
+    console.error("Error fetching opening stocks:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+
+const carryForwardFinancialYear = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const userId = req.user.id;
+
+    const today = new Date();
+    const day = today.getDate();
+    const month = today.getMonth(); 
+
+   
+    //if (!(day === 1 && month === 3)) {
+    //  throw new Error("Carry forward allowed only on 1st April");
+   // }
+
+    const currentFY = getFinancialYear(); 
+    const nextFY = getNextFinancialYear();
+
+    const currentStocks = await CurrentStock.find({
+      userId
+    }).session(session);
+
+    if (!currentStocks.length) {
+      throw new Error("No stock found to carry forward");
+    }
+
+    for (const stock of currentStocks) {
+
+      
+      const previousYearStock = await OpningStockModle.findOne({
+        userId,
+        productId: stock.productId,
+        financialYear: currentFY
+      }).session(session);
+
+      if (!previousYearStock) {
+        continue; // skip if no previous year record
+      }
+
+      // ===============================
+      // UPDATE PREVIOUS YEAR CLOSING
+      // ===============================
+      previousYearStock.closingStock = stock.quantity;
+      await previousYearStock.save({ session });
+
+      // ===============================
+      // CHECK IF NEXT YEAR EXISTS
+      // ===============================
+      const existingNextYear = await OpningStockModle.findOne({
+        userId,
+        productId: stock.productId,
+        financialYear: nextFY
+      }).session(session);
+
+      if (existingNextYear) {
+        continue;
+      }
+
+      // ===============================
+      // CREATE NEXT YEAR RECORD
+      // ===============================
+      await OpningStockModle.create(
+        [{
+          userId,
+          productId: stock.productId,
+          financialYear: nextFY,
+          openingStock: stock.quantity,
+          closingStock: stock.quantity,
+          totalPurchase: previousYearStock.totalPurchase,
+          totalSale: previousYearStock.totalSale
+        }],
+        { session }
+      );
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      success: true,
+      message: "Financial year carried forward successfully"
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Internal server error"
+    });
+  }
+};
+module.exports = {carryForwardFinancialYear, createOpeningStock, updateOpeningStock, getOpeningStockById, getOpeningStocks, deleteOpeningStock };

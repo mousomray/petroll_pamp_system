@@ -29,6 +29,12 @@ type OpeningStockFormProps = {
     onSuccess: () => void;
 };
 
+interface Tank {
+    _id: string;
+    tankName: string;
+    capacity: number;
+}
+
 interface Product {
     _id: string;
     name: string;
@@ -39,6 +45,8 @@ interface Product {
     sellingPrice: number;
     minimumStockAlert: number;
     openingStock?: number;
+    tankIds?: string[];
+    tankAllocations?: Array<{ tankId: string; openingStock: number; tankName?: string }>;
 }
 
 function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps) {
@@ -46,6 +54,9 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
     const [loading, setLoading] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
     const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+    const [currentStock, setCurrentStock] = useState<any>(null);
+    const [editProduct, setEditProduct] = useState<Product | null>(null);
+    const [tanks, setTanks] = useState<Tank[]>([]);
     const isEditMode = !!stockId;
 
     const createForm = useForm<CreateOpeningStockFormData>({
@@ -73,10 +84,14 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
 
     useEffect(() => {
         fetchProducts();
-        if (stockId) {
+        fetchTanks();
+    }, []);
+
+    useEffect(() => {
+        if (stockId && products.length > 0 && tanks.length > 0) {
             fetchStockData();
         }
-    }, [stockId]);
+    }, [stockId, products, tanks]);
 
     const fetchProducts = async () => {
         try {
@@ -89,13 +104,66 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         }
     };
 
+    const fetchTanks = async () => {
+        try {
+            const res = await axiosInstance.get("/api/tank/dropdown-tanks", {
+                params: { page: 1, limit: 1000 },
+            });
+            setTanks(res.data.tanks || res.data.data || []);
+            console.log("Fetched tanks:", res.data.tanks || res.data.data || []);
+        } catch (error: any) {
+            console.error("Failed to fetch tanks");
+        }
+    };
+
+    const getTankName = (tankId: string): string => {
+        const tank = tanks.find(t => t._id === tankId);
+        return tank?.tankName || `Tank ${tankId.slice(0, 6)}`;
+    };
+
     const fetchStockData = async () => {
         try {
             setLoading(true);
-            const res = await axiosInstance.get(`/api/financial-stock/single-financial-stocks/${stockId}`);
+            const res = await axiosInstance.get(`/api/opening-stock/single-opening-stocks/${stockId}`);
             const stock = res.data.data;
+            setCurrentStock(stock);
+
             if (isEditMode) {
                 updateForm.setValue("openingStock", stock.openingStock);
+
+                // Find the product to get its type and tank allocations
+                let productId = null;
+                if (Array.isArray(stock.productId)) {
+                    productId = stock.productId[0];
+                } else {
+                    productId = stock.productId;
+                }
+
+                const product = products.find(p => p._id === productId);
+
+                if (product) {
+                    if (product.type === "FUEL" && product.tankIds && product.tankIds.length > 0) {
+                        // For FUEL products, set up tank allocations from stock data
+                        const tankAllocations = stock.tanks?.length > 0
+                            ? stock.tanks.map((t: any) => ({
+                                tankId: t.tankId,
+                                openingStock: t.quantity || 0,
+                                tankName: getTankName(t.tankId)
+                            }))
+                            : product.tankIds.map(tankId => ({
+                                tankId,
+                                openingStock: 0,
+                                tankName: getTankName(tankId)
+                            }));
+
+                        setEditProduct({
+                            ...product,
+                            tankAllocations
+                        });
+                    } else {
+                        setEditProduct(product);
+                    }
+                }
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to fetch stock data");
@@ -112,7 +180,22 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         if (!isEditMode && watchedProductIds && products.length > 0) {
             const selected = products
                 .filter(p => watchedProductIds.includes(p._id))
-                .map(p => ({ ...p, openingStock: p.quantity ?? 0 }));
+                .map(p => {
+                    // For FUEL type products, initialize tank allocations
+                    if (p.type === "FUEL" && p.tankIds && p.tankIds.length > 0) {
+                        return {
+                            ...p,
+                            openingStock: 0,
+                            tankAllocations: p.tankIds.map(tankId => ({
+                                tankId,
+                                openingStock: 0,
+                                tankName: getTankName(tankId)
+                            }))
+                        };
+                    }
+                    // For non-FUEL products, use quantity as default
+                    return { ...p, openingStock: p.quantity ?? 0 };
+                });
             setSelectedProducts(selected);
         }
     }, [watchedProductIds, products, isEditMode]);
@@ -121,40 +204,159 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         setSelectedProducts(prev => prev.map(p => p._id === productId ? { ...p, openingStock: value ?? 0 } : p));
     };
 
-    const onSubmit = async (data: CreateOpeningStockFormData | UpdateOpeningStockFormData) => {
+    const updateTankAllocation = (productId: string, tankId: string, value: number | null) => {
+        setSelectedProducts(prev =>
+            prev.map(p => {
+                if (p._id === productId && p.tankAllocations) {
+                    return {
+                        ...p,
+                        tankAllocations: p.tankAllocations.map(ta =>
+                            ta.tankId === tankId ? { ...ta, openingStock: value ?? 0 } : ta
+                        )
+                    };
+                }
+                return p;
+            })
+        );
+    };
+
+    const updateEditTankAllocation = (tankId: string, value: number | null) => {
+        if (editProduct && editProduct.tankAllocations) {
+            setEditProduct({
+                ...editProduct,
+                tankAllocations: editProduct.tankAllocations.map(ta =>
+                    ta.tankId === tankId ? { ...ta, openingStock: value ?? 0 } : ta
+                )
+            });
+        }
+    };
+
+    const onSubmit = async (
+        data: CreateOpeningStockFormData | UpdateOpeningStockFormData
+    ) => {
         setIsSubmitting(true);
+
         try {
-            const url = isEditMode
-                ? `/api/financial-stock/update-financial-stock/${stockId}`
-                : `/api/financial-stock/create-financial-stock`;
-
-            const method = isEditMode ? 'put' : 'post';
-
-            let payload: any = data;
+            // ==============================
+            // ✅ CREATE MODE
+            // ==============================
             if (!isEditMode) {
-                // transform selectedProducts to required payload
-                payload = {
-                    products: selectedProducts.map(p => ({ productId: p._id, openingStock: Number(p.openingStock) || 0 }))
+
+                if (!selectedProducts.length) {
+                    toast.error("Please select at least one product");
+                    return;
+                }
+
+                // 🔥 Build products array for backend
+                const productsPayload = selectedProducts.map((product) => {
+
+                    // If FUEL product
+                    if (product.type === "FUEL") {
+
+                        const tanks =
+                            product.tankAllocations?.map((ta) => ({
+                                tankId: ta.tankId,
+                                quantity: ta.openingStock || 0
+                            })) || [];
+
+                        const totalOpeningStock = tanks.reduce(
+                            (sum, tank) => sum + Number(tank.quantity || 0),
+                            0
+                        );
+
+                        return {
+                            productId: product._id,
+                            openingStock: totalOpeningStock,
+                            tanks: tanks
+                        };
+                    }
+
+                    // If NON-FUEL
+                    return {
+                        productId: product._id,
+                        openingStock: product.openingStock || 0
+                    };
+                });
+
+                const payload = {
+                    products: productsPayload
                 };
-            }
 
-            const res = await axiosInstance[method](url, payload);
+                // ✅ SINGLE API CALL
+                const res = await axiosInstance.post(
+                    "/api/opening-stock/create-opening-stock",
+                    payload
+                );
 
-            toast.success(res.data.message || `Opening stock ${isEditMode ? 'updated' : 'created'} successfully!`);
-            if (isEditMode) {
-                updateForm.reset();
-            } else {
+                toast.success(
+                    res.data.message ||
+                    `Opening stock created for ${selectedProducts.length} product(s)`
+                );
+
                 createForm.reset();
+                setSelectedProducts([]);
+                onSuccess();
             }
-            onSuccess();
+
+            // ==============================
+            // ✅ EDIT MODE
+            // ==============================
+            else {
+
+                const url = `/api/opening-stock/update-opening-stock/${stockId}`;
+                let payload: any = {};
+
+                if (!editProduct) {
+                    toast.error("Product not found");
+                    return;
+                }
+
+                if (editProduct.type === "FUEL") {
+
+                    const tanks =
+                        editProduct.tankAllocations?.map((ta) => ({
+                            tankId: ta.tankId,
+                            quantity: ta.openingStock || 0
+                        })) || [];
+
+                    const totalOpeningStock = tanks.reduce(
+                        (sum, tank) => sum + Number(tank.quantity || 0),
+                        0
+                    );
+
+                    payload = {
+                        openingStock: totalOpeningStock,
+                        tanks: tanks
+                    };
+
+                } else {
+
+                    payload = {
+                        openingStock: editProduct.openingStock || 0
+                    };
+                }
+
+                const res = await axiosInstance.put(url, payload);
+
+                toast.success(
+                    res.data.message || "Opening stock updated successfully!"
+                );
+
+                updateForm.reset();
+                onSuccess();
+            }
+
         } catch (error: any) {
             console.error("Opening stock operation error:", error);
-            toast.error(error.response?.data?.message || `Failed to ${isEditMode ? "update" : "create"} opening stock`);
+
+            toast.error(
+                error.response?.data?.message ||
+                `Failed to ${isEditMode ? "update" : "create"} opening stock`
+            );
         } finally {
             setIsSubmitting(false);
         }
     };
-
     if (loading) {
         return (
             <div className="flex justify-center items-center p-8">
@@ -231,28 +433,43 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                                 )}
                             />
                             <Column
-                                field="quantity"
-                                header="Current Quantity"
-                                body={(rowData) => (
-                                    <div className="flex items-center gap-2">
-                                        <i className="pi pi-box text-blue-500"></i>
-                                        <span className="font-medium">{rowData.quantity?.toLocaleString() || 0}</span>
-                                    </div>
-                                )}
-                            />
-                            <Column
                                 field="openingStock"
                                 header="Opening Stock"
-                                body={(rowData) => (
-                                    <div className="flex items-center gap-2">
-                                        <InputNumber
-                                            value={rowData.openingStock}
-                                            onValueChange={(e) => updateOpeningStockForProduct(rowData._id, e.value ?? null)}
-                                            min={0}
-                                            className="w-32"
-                                        />
-                                    </div>
-                                )}
+                                body={(rowData) => {
+                                    // For FUEL type products, show tank allocations
+                                    if (rowData.type === "FUEL" && rowData.tankAllocations && rowData.tankAllocations.length > 0) {
+                                        return (
+                                            <div className="flex flex-col gap-2">
+                                                {rowData.tankAllocations.map((allocation: any, idx: number) => (
+                                                    <div key={allocation.tankId} className="flex flex-col  gap-2">
+                                                        <label className="text-xs text-gray-600 min-w-fit">
+                                                            {allocation.tankName || `Tank ${idx + 1}`}:
+                                                        </label>
+                                                        <InputNumber
+                                                            value={allocation.openingStock}
+                                                            onValueChange={(e) => updateTankAllocation(rowData._id, allocation.tankId, e.value ?? null)}
+                                                            min={0}
+                                                            className="w-full"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+
+                                    // For non-FUEL products, show single input
+                                    return (
+                                        <div className="flex items-center gap-2">
+                                            <InputNumber
+                                                value={rowData.openingStock}
+                                                onValueChange={(e) => updateOpeningStockForProduct(rowData._id, e.value ?? null)}
+                                                min={0}
+                                                className="w-full"
+                                            />
+                                        </div>
+                                    );
+                                }}
                             />
                             <Column
                                 field="costPrice"
@@ -291,7 +508,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                             <div className="flex items-start gap-2">
                                 <i className="pi pi-info-circle text-blue-600 mt-1"></i>
                                 <div className="text-sm text-blue-800">
-                                    <strong>Note:</strong> You can edit the opening stock value for each selected product before creating the opening stock.
+                                    <strong>Note:</strong> You can select and edit opening stock values for both FUEL (with tank allocation) and non-FUEL products together. they will be created in separate transactions.
                                 </div>
                             </div>
                         </div>
@@ -320,31 +537,67 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         );
     }
 
-    // For Edit mode - show only opening stock input
+    // For Edit mode - show opening stock input or tank allocations
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="flex flex-col gap-2">
-                <label htmlFor="openingStock" className="font-medium text-sm">
-                    Opening Stock <span className="text-red-500">*</span>
-                </label>
-                <Controller
-                    name="openingStock"
-                    control={control as any}
-                    render={({ field }) => (
-                        <InputNumber
-                            id="openingStock"
-                            value={field.value}
-                            onValueChange={(e) => field.onChange(e.value)}
-                            placeholder="Enter opening stock"
-                            min={0}
-                            className={`w-full ${(errors as any).openingStock ? "p-invalid" : ""}`}
-                        />
+            {editProduct && editProduct.type === "FUEL" && editProduct.tankAllocations ? (
+                // Show tank allocations for FUEL products
+                <div className="flex flex-col gap-4">
+                    <div>
+                        <h3 className="font-semibold text-sm mb-2 text-gray-700">
+                            {editProduct.name} <span className="text-xs text-gray-500">({editProduct.type})</span>
+                        </h3>
+                        <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border">
+                            {editProduct.tankAllocations.map((allocation: any, idx: number) => (
+                                <div key={allocation.tankId} className="flex flex-col gap-1">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        {allocation.tankName || `Tank ${idx + 1}`} <span className="text-red-500">*</span>
+                                    </label>
+                                    <InputNumber
+                                        value={allocation.openingStock}
+                                        onValueChange={(e) => updateEditTankAllocation(allocation.tankId, e.value ?? null)}
+                                        min={0}
+                                        placeholder="Enter quantity"
+                                        className="w-full"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                            <i className="pi pi-info-circle text-blue-600 mt-1"></i>
+                            <div className="text-sm text-blue-800">
+                                <strong>Note:</strong> Enter opening stock value for each allocated tank. Total will be calculated automatically.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                // Show single opening stock input for non-FUEL products
+                <div className="flex flex-col gap-2">
+                    <label htmlFor="openingStock" className="font-medium text-sm">
+                        Opening Stock <span className="text-red-500">*</span>
+                    </label>
+                    <Controller
+                        name="openingStock"
+                        control={control as any}
+                        render={({ field }) => (
+                            <InputNumber
+                                id="openingStock"
+                                value={field.value}
+                                onValueChange={(e) => field.onChange(e.value)}
+                                placeholder="Enter opening stock"
+                                min={0}
+                                className={`w-full ${(errors as any).openingStock ? "p-invalid" : ""}`}
+                            />
+                        )}
+                    />
+                    {(errors as any).openingStock && (
+                        <small className="text-red-500">{(errors as any).openingStock.message}</small>
                     )}
-                />
-                {(errors as any).openingStock && (
-                    <small className="text-red-500">{(errors as any).openingStock.message}</small>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Form Actions */}
             <div className="flex justify-end gap-2 mt-6">

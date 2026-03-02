@@ -77,7 +77,7 @@ function Page() {
     const fetchStockData = async () => {
         try {
             setLoading(true);
-            const res = await axiosInstance.get("/api/financial-stock/all-financial-stocks", {
+            const res = await axiosInstance.get("/api/opening-stock/all-opening-stocks", {
                 params: {
                     page: pagination.page,
                     limit: pagination.rows,
@@ -86,10 +86,10 @@ function Page() {
                 },
             });
 
-            setStockData(res.data.data || []);
+            setStockData(res.data.stocks || []);
             setPagination((prev) => ({
                 ...prev,
-                total: res.data.pagination.total || 0,
+                total: res.data.totalRecords || 0,
             }));
         } catch (error: any) {
             if (axios.isAxiosError(error)) {
@@ -138,7 +138,7 @@ function Page() {
     const carryForward = async () => {
         try {
             setCarryLoading(true);
-            const res = await axiosInstance.post("/api/financial-stock/carry-forward-financial-year", {
+            const res = await axiosInstance.post("/api/opening-stock/carry-forward-financial-year", {
                 financialYear: debouncedFinancialYear || undefined,
             });
             toast.success(res.data.message || "Carry forward completed successfully");
@@ -198,7 +198,7 @@ function Page() {
 
     const unitTemplate = (rowData: any) => (
         <span className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs font-medium">
-            {rowData.product?.unit || rowData.unit || "N/A"}
+            {rowData.productUnit || rowData.unit || "N/A"}
         </span>
     );
 
@@ -363,7 +363,7 @@ function Page() {
                     />
                     
                     <Column header="Created" body={(row: any) => formatDate(row.createdAt)} style={{ minWidth: "110px" }} />
-                    <Column header="Actions" body={actionTemplate} style={{ minWidth: "90px" }} />
+                   
                 </DataTable>
 
                 {/* popup menu (single instance) */}
