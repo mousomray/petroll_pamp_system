@@ -2,15 +2,15 @@ const mongoose = require("mongoose");
 const Tank = require("../model/tank.model.js");
 const Product = require("../model/product.model.js");
 const UserModel = require("../model/user.model.js")
-const {createTankSchema, updateTankSchema  } = require("../schema/tank.schema.js");
+const { createTankSchema, updateTankSchema } = require("../schema/tank.schema.js");
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
 
 
 const addTank = async (req, res) => {
     try {
-       const userId = req.user?._id || req.user?.id;
-      const parsedData = createTankSchema.parse(req.body);
+        const userId = req.user?._id || req.user?.id;
+        const parsedData = createTankSchema.parse(req.body);
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -49,143 +49,143 @@ const addTank = async (req, res) => {
 
 
 const listTank = async (req, res) => {
-  try {
-    const userId = req.user._id;
+    try {
+        const userId = req.user._id;
 
-    let { page = 1, limit, search } = req.query;
+        let { page = 1, limit, search } = req.query;
 
-    page = parseInt(page);
-    limit = parseInt(limit) || DEFAULT_PAGE_SIZE;
+        page = parseInt(page);
+        limit = parseInt(limit) || DEFAULT_PAGE_SIZE;
 
-    const matchStage = {
-      userId: new mongoose.Types.ObjectId(userId),
-    };
+        const matchStage = {
+            userId: new mongoose.Types.ObjectId(userId),
+        };
 
-    if (search) {
-      matchStage.tankName = { $regex: search, $options: "i" };
+        if (search) {
+            matchStage.tankName = { $regex: search, $options: "i" };
+        }
+
+
+        const pipeline = [
+            { $match: matchStage },
+
+            { $sort: { createdAt: -1 } },
+
+            {
+                $facet: {
+                    data: [
+                        { $skip: (page - 1) * limit },
+                        { $limit: limit },
+                    ],
+                    totalCount: [{ $count: "count" }],
+                },
+            },
+        ];
+
+        const result = await Tank.aggregate(pipeline);
+
+        const tanks = result[0].data;
+        const total = result[0].totalCount[0]?.count || 0;
+
+        return res.json({
+            success: true,
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+            tanks: tanks,
+        });
+
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
     }
-
-
-    const pipeline = [
-      { $match: matchStage },
-
-      { $sort: { createdAt: -1 } },
-
-      {
-        $facet: {
-          data: [
-            { $skip: (page - 1) * limit },
-            { $limit: limit },
-          ],
-          totalCount: [{ $count: "count" }],
-        },
-      },
-    ];
-
-    const result = await Tank.aggregate(pipeline);
-
-    const tanks = result[0].data;
-    const total = result[0].totalCount[0]?.count || 0;
-
-    return res.json({
-      success: true,
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-       tanks: tanks,
-    });
-
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
 };
 
 
 const getSingleTank = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { id } = req.params;
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
 
-    const tank = await Tank.findOne({
-      _id: id,
-      userId,
-      isActive: true,
-    });
+        const tank = await Tank.findOne({
+            _id: id,
+            userId,
+            isActive: true,
+        });
 
-    if (!tank) {
-      return res.status(404).json({
-        success: false,
-        message: "Tank not found",
-      });
+        if (!tank) {
+            return res.status(404).json({
+                success: false,
+                message: "Tank not found",
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: tank,
+        });
+
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
     }
-
-    return res.json({
-      success: true,
-      data: tank,
-    });
-
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
 };
 
 const updateTank = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { id } = req.params;
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
 
-    const parsedData = updateTankSchema.parse(req.body);
+        const parsedData = updateTankSchema.parse(req.body);
 
-    const tank = await Tank.findOne({
-      _id: id,
-      userId,
-      isActive: true,
-    });
-
-    if (!tank) {
-      return res.status(404).json({
-        success: false,
-        message: "Tank not found",
-      });
-    }
-
-    if (parsedData.tankName !== undefined)
-      tank.tankName = parsedData.tankName;
-
-    if (parsedData.capacity !== undefined) {
-      if (tank.currentQuantity > parsedData.capacity) {
-        return res.status(400).json({
-          success: false,
-          message: "Capacity cannot be less than current quantity",
+        const tank = await Tank.findOne({
+            _id: id,
+            userId,
+            isActive: true,
         });
-      }
-      tank.capacity = parsedData.capacity;
+
+        if (!tank) {
+            return res.status(404).json({
+                success: false,
+                message: "Tank not found",
+            });
+        }
+
+        if (parsedData.tankName !== undefined)
+            tank.tankName = parsedData.tankName;
+
+        if (parsedData.capacity !== undefined) {
+            if (tank.currentQuantity > parsedData.capacity) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Capacity cannot be less than current quantity",
+                });
+            }
+            tank.capacity = parsedData.capacity;
+        }
+
+        if (parsedData.isActive !== undefined)
+            tank.isActive = parsedData.isActive;
+
+        await tank.save();
+
+        return res.json({
+            success: true,
+            message: "Tank updated successfully",
+            data: tank,
+        });
+
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
     }
-
-    if (parsedData.isActive !== undefined)
-      tank.isActive = parsedData.isActive;
-
-    await tank.save();
-
-    return res.json({
-      success: true,
-      message: "Tank updated successfully",
-      data: tank,
-    });
-
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
 };
 
 const activeStatus = async (req, res) => {
@@ -317,9 +317,17 @@ const getTanksByProduct = async (req, res) => {
             });
         }
 
+        if (!product.tankIds || product.tankIds.length === 0) {
+            return res.json({
+                success: true,
+                total: 0,
+                data: []
+            });
+        }
+
         const tanks = await Tank.find({
+            _id: { $in: product.tankIds },
             userId,
-            productId,
             isActive: true
         })
             .select("tankName capacity currentQuantity createdAt")
@@ -332,6 +340,7 @@ const getTanksByProduct = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Error in getTanksByProduct:", error);
         return res.status(400).json({
             success: false,
             message: error.message

@@ -4,16 +4,26 @@ import React, { useEffect, useState } from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { InputText } from "primereact/inputtext";
 import { InputNumber } from "primereact/inputnumber";
 import { Calendar } from "primereact/calendar";
 import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { toast } from "react-toastify";
 import axiosInstance from "@/service/axios.service";
-import { createPurchaseSchema } from "@/helper/schema/Schema";
 
-type CreatePurchaseFormData = z.infer<typeof createPurchaseSchema>;
+// Simple schema matching exact payload requirements
+const simplePurchaseSchema = z.object({
+    supplierId: z.string().min(1, "Supplier is required"),
+    purchaseDate: z.date(),
+    paymentMethod: z.enum(["CASH", "BANK", "UPI", "CARD"]),
+    items: z.array(z.object({
+        productId: z.string().min(1, "Product is required"),
+        quantity: z.number().positive("Quantity must be greater than 0"),
+        tankId: z.string().nullable(),
+    })).min(1, "At least one item is required"),
+});
+
+type CreatePurchaseFormData = z.infer<typeof simplePurchaseSchema>;
 
 type PurchaseFormProps = {
     onClose: () => void;
@@ -24,36 +34,27 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
     const [suppliers, setSuppliers] = useState<any[]>([]);
-    const [financialYears, setFinancialYears] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
-    const [tanks, setTanks] = useState<any[]>([]);
     const [itemTanks, setItemTanks] = useState<Record<number, any[]>>({});
     const [itemTankLoading, setItemTankLoading] = useState<Record<number, boolean>>({});
 
     const {
-        register,
         handleSubmit,
         control,
         reset,
         watch,
         setValue,
         formState: { errors },
-    } = useForm({
-        resolver: zodResolver(createPurchaseSchema),
+    } = useForm<CreatePurchaseFormData>({
+        resolver: zodResolver(simplePurchaseSchema),
         defaultValues: {
             supplierId: "",
-            financialYearId: "",
-            invoiceNo: "",
             purchaseDate: new Date(),
-            paymentStatus: "DUE",
             paymentMethod: "CASH",
-            paidAmount: 0,
             items: [
                 {
                     productId: "",
                     quantity: 1,
-                    costPrice: 0,
-                    discount: 0,
                     tankId: null,
                 },
             ],
@@ -66,12 +67,6 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
     });
 
     const watchedItems = watch("items");
-
-    const paymentStatusOptions = [
-        { label: "Paid", value: "PAID" },
-        { label: "Partial", value: "PARTIAL" },
-        { label: "Due", value: "DUE" },
-    ];
 
     const paymentMethodOptions = [
         { label: "Cash", value: "CASH" },
@@ -89,9 +84,7 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
         try {
             await Promise.all([
                 fetchSuppliers(),
-                fetchFinancialYears(),
                 fetchProducts(),
-                fetchTanks(),
             ]);
         } catch (error) {
             console.error("Error fetching dropdown data:", error);
@@ -111,17 +104,6 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
         }
     };
 
-    const fetchFinancialYears = async () => {
-        try {
-            const res = await axiosInstance.get("/api/financial-year/all-financials/active", {
-                params: { page: 1, limit: 1000 },
-            });
-            setFinancialYears(res.data.financialYears || []);
-        } catch (error: any) {
-            toast.error("Failed to fetch financial years");
-        }
-    };
-
     const fetchProducts = async () => {
         try {
             const res = await axiosInstance.get("/api/product/dropdown-all-products");
@@ -131,21 +113,25 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
         }
     };
 
-    const fetchTanks = async () => {
-        try {
-            const res = await axiosInstance.get("/api/tank/all-tanks", {
-                params: { page: 1, limit: 1000 },
-            });
-            setTanks(res.data.tanks || []);
-        } catch (error: any) {
-            toast.error("Failed to fetch tanks");
-        }
-    };
-
     const onSubmit = async (data: CreatePurchaseFormData) => {
         setIsSubmitting(true);
         try {
-            const res = await axiosInstance.post("/api/purchase/create-product-purchase", data);
+            // Format date to YYYY-MM-DD
+            const formattedDate = new Date(data.purchaseDate).toISOString().split("T")[0];
+
+            // Build exact payload as requested
+            const payload = {
+                supplierId: data.supplierId,
+                purchaseDate: formattedDate,
+                paymentMethod: data.paymentMethod,
+                items: data.items.map((item) => ({
+                    productId: item.productId,
+                    quantity: Number(item.quantity),
+                    tankId: item.tankId || null,
+                })),
+            };
+
+            const res = await axiosInstance.post("/api/purchase/create-product-purchase", payload);
 
             toast.success(res.data.message || "Purchase created successfully!");
             reset();
@@ -162,8 +148,6 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
         append({
             productId: "",
             quantity: 1,
-            costPrice: 0,
-            discount: 0,
             tankId: null,
         });
     };
@@ -189,19 +173,9 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
         value: supplier._id,
     }));
 
-    const financialYearOptions = financialYears.map((fy) => ({
-        label: fy.name,
-        value: fy._id,
-    }));
-
     const productOptions = products.map((product) => ({
         label: `${product.name} (${product.unit})`,
         value: product._id,
-    }));
-
-    const tankOptions = tanks.map((tank) => ({
-        label: `${tank.tankName} - Capacity: ${tank.capacity}`,
-        value: tank._id,
     }));
 
     return (
@@ -214,7 +188,7 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                         Purchase Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Supplier */}
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-gray-700">
@@ -247,61 +221,6 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                             )}
                         </div>
 
-                        {/* Financial Year */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-700">
-                                Financial Year <span className="text-red-500">*</span>
-                            </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-calendar text-blue-600"></i>
-                                </span>
-                                <Controller
-                                    name="financialYearId"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Dropdown
-                                            value={field.value}
-                                            onChange={(e) => field.onChange(e.value)}
-                                            options={financialYearOptions}
-                                            placeholder="Select financial year"
-                                            filter
-                                            className="w-full"
-                                        />
-                                    )}
-                                />
-                            </div>
-                            {errors.financialYearId && (
-                                <small className="text-red-500 flex items-center gap-1">
-                                    <i className="pi pi-exclamation-circle"></i>
-                                    {errors.financialYearId.message}
-                                </small>
-                            )}
-                        </div>
-
-                        {/* Invoice Number */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-700">
-                                Invoice Number <span className="text-red-500">*</span>
-                            </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-hashtag text-blue-600"></i>
-                                </span>
-                                <InputText
-                                    className="w-full"
-                                    {...register("invoiceNo")}
-                                    placeholder="e.g., INV-101"
-                                />
-                            </div>
-                            {errors.invoiceNo && (
-                                <small className="text-red-500 flex items-center gap-1">
-                                    <i className="pi pi-exclamation-circle"></i>
-                                    {errors.invoiceNo.message}
-                                </small>
-                            )}
-                        </div>
-
                         {/* Purchase Date */}
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-gray-700">
@@ -316,10 +235,8 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                     control={control}
                                     render={({ field }) => (
                                         <Calendar
-                                            value={field.value ?? null}
-                                            onChange={(e) => {
-                                                field.onChange(e.value ?? null);
-                                            }}
+                                            value={field.value}
+                                            onChange={(e) => field.onChange(e.value)}
                                             dateFormat="dd/mm/yy"
                                             placeholder="Select purchase date"
                                             className="w-full"
@@ -331,37 +248,6 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                 <small className="text-red-500 flex items-center gap-1">
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.purchaseDate.message}
-                                </small>
-                            )}
-                        </div>
-
-                        {/* Payment Status */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-700">
-                                Payment Status <span className="text-red-500">*</span>
-                            </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-check-circle text-blue-600"></i>
-                                </span>
-                                <Controller
-                                    name="paymentStatus"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Dropdown
-                                            value={field.value}
-                                            onChange={(e) => field.onChange(e.value)}
-                                            options={paymentStatusOptions}
-                                            placeholder="Select payment status"
-                                            className="w-full"
-                                        />
-                                    )}
-                                />
-                            </div>
-                            {errors.paymentStatus && (
-                                <small className="text-red-500 flex items-center gap-1">
-                                    <i className="pi pi-exclamation-circle"></i>
-                                    {errors.paymentStatus.message}
                                 </small>
                             )}
                         </div>
@@ -393,40 +279,6 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                 <small className="text-red-500 flex items-center gap-1">
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.paymentMethod.message}
-                                </small>
-                            )}
-                        </div>
-
-                        {/* Paid Amount */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-700">
-                                Paid Amount <span className="text-red-500">*</span>
-                            </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
-                                    <i className="pi pi-money-bill text-blue-600"></i>
-                                </span>
-                                <Controller
-                                    name="paidAmount"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <InputNumber
-                                            value={field.value}
-                                            onValueChange={(e) => field.onChange(e.value ?? 0)}
-                                            mode="currency"
-                                            currency="INR"
-                                            locale="en-IN"
-                                            placeholder="Enter paid amount"
-                                            min={0}
-                                            className="w-full"
-                                        />
-                                    )}
-                                />
-                            </div>
-                            {errors.paidAmount && (
-                                <small className="text-red-500 flex items-center gap-1">
-                                    <i className="pi pi-exclamation-circle"></i>
-                                    {errors.paidAmount.message}
                                 </small>
                             )}
                         </div>
@@ -472,7 +324,7 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {/* Product */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-gray-700">
@@ -488,7 +340,7 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                                     field.onChange(e.value);
                                                     const newProd = products.find(p => p._id === e.value);
                                                     const unit = newProd?.unit?.toString()?.toUpperCase();
-                                                    // If product is litre, fetch tanks for that product and auto-assign
+                                                    // If product is litre, fetch tanks for that product
                                                     if (unit === 'LITRE' || unit === 'LITER') {
                                                         try {
                                                             setItemTankLoading(prev => ({ ...prev, [index]: true }));
@@ -499,18 +351,15 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                                                 setValue(`items.${index}.tankId`, data[0]._id);
                                                             } else {
                                                                 setValue(`items.${index}.tankId`, null);
-                                                                toast.warning("No tanks available for selected product");
                                                             }
                                                         } catch (err) {
-                                                            console.error("Failed to fetch tanks for product", err);
+                                                            console.error("Failed to fetch tanks", err);
                                                             setItemTanks(prev => ({ ...prev, [index]: [] }));
                                                             setValue(`items.${index}.tankId`, null);
-                                                            toast.error("Failed to load tanks for selected product");
                                                         } finally {
                                                             setItemTankLoading(prev => ({ ...prev, [index]: false }));
                                                         }
                                                     } else {
-                                                        // non-litre products: clear any tank data
                                                         setItemTanks(prev => ({ ...prev, [index]: [] }));
                                                         setValue(`items.${index}.tankId`, null);
                                                     }
@@ -530,53 +379,6 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                     )}
                                 </div>
 
-                                {/* Tank */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700">
-                                        Tank <span className="text-red-500">*</span>
-                                    </label>
-                                    {(() => {
-                                        const selectedProductId = watchedItems?.[index]?.productId;
-                                        const selectedProduct = products.find(p => p._id === selectedProductId);
-                                        const unit = selectedProduct?.unit?.toString()?.toUpperCase();
-                                        const showTank = unit === 'LITRE' || unit === 'LITER';
-                                        if (!showTank) return null;
-                                        const options = (itemTanks[index] || []).map((t) => ({ label: `${t.tankName} - Capacity: ${t.capacity}`, value: t._id }));
-                                        return (
-                                            <>
-                                                {itemTankLoading[index] ? (
-                                                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                        <i className="pi pi-spin pi-spinner"></i>
-                                                        Loading tanks...
-                                                    </div>
-                                                ) : options.length === 0 ? (
-                                                    <div className="text-sm text-gray-600">No tank assigned for selected product</div>
-                                                ) : (
-                                                    <Controller
-                                                        name={`items.${index}.tankId`}
-                                                        control={control}
-                                                        render={({ field }) => (
-                                                            <Dropdown
-                                                                value={field.value}
-                                                                options={options}
-                                                                placeholder="Tank"
-                                                                className="w-full"
-                                                                disabled
-                                                            />
-                                                        )}
-                                                    />
-                                                )}
-                                                {errors.items?.[index]?.tankId && (
-                                                    <small className="text-red-500 flex items-center gap-1">
-                                                        <i className="pi pi-exclamation-circle"></i>
-                                                        {errors.items[index]?.tankId?.message}
-                                                    </small>
-                                                )}
-                                            </>
-                                        );
-                                    })()}
-                                </div>
-
                                 {/* Quantity */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-gray-700">
@@ -588,9 +390,9 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                         render={({ field }) => (
                                             <InputNumber
                                                 value={field.value}
-                                                onValueChange={(e) => field.onChange(e.value ?? 0)}
+                                                onValueChange={(e) => field.onChange(e.value ?? 1)}
                                                 placeholder="Enter quantity"
-                                                min={0}
+                                                min={1}
                                                 className="w-full"
                                             />
                                         )}
@@ -603,117 +405,53 @@ function PurchaseForm({ onClose, onSuccess }: PurchaseFormProps) {
                                     )}
                                 </div>
 
-                                {/* Discount */}
+                                {/* Tank (only for LITRE products) */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-gray-700">
-                                        Discount
+                                        Tank
                                     </label>
-                                    <Controller
-                                        name={`items.${index}.discount`}
-                                        control={control}
-                                        render={({ field }) => (
-                                            <InputNumber
-                                                value={field.value}
-                                                onValueChange={(e) => field.onChange(e.value ?? 0)}
-                                                mode="currency"
-                                                currency="INR"
-                                                locale="en-IN"
-                                                placeholder="Enter discount"
-                                                min={0}
-                                                className="w-full"
-                                            />
-                                        )}
-                                    />
-                                    {errors.items?.[index]?.discount && (
-                                        <small className="text-red-500 flex items-center gap-1">
-                                            <i className="pi pi-exclamation-circle"></i>
-                                            {errors.items[index]?.discount?.message}
-                                        </small>
-                                    )}
-                                </div>
-
-                                {/* CGST % */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700">
-                                        CGST %
-                                    </label>
-                                    <Controller
-                                        name={`items.${index}.cgstPercent`}
-                                        control={control}
-                                        render={({ field }) => (
-                                            <InputNumber
-                                                value={field.value}
-                                                onValueChange={(e) => field.onChange(e.value ?? 0)}
-                                                placeholder="Enter CGST %"
-                                                min={0}
-                                                max={100}
-                                                suffix="%"
-                                                className="w-full"
-                                            />
-                                        )}
-                                    />
-                                    {errors.items?.[index]?.cgstPercent && (
-                                        <small className="text-red-500 flex items-center gap-1">
-                                            <i className="pi pi-exclamation-circle"></i>
-                                            {errors.items[index]?.cgstPercent?.message}
-                                        </small>
-                                    )}
-                                </div>
-
-                                {/* SGST % */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700">
-                                        SGST %
-                                    </label>
-                                    <Controller
-                                        name={`items.${index}.sgstPercent`}
-                                        control={control}
-                                        render={({ field }) => (
-                                            <InputNumber
-                                                value={field.value}
-                                                onValueChange={(e) => field.onChange(e.value ?? 0)}
-                                                placeholder="Enter SGST %"
-                                                min={0}
-                                                max={100}
-                                                suffix="%"
-                                                className="w-full"
-                                            />
-                                        )}
-                                    />
-                                    {errors.items?.[index]?.sgstPercent && (
-                                        <small className="text-red-500 flex items-center gap-1">
-                                            <i className="pi pi-exclamation-circle"></i>
-                                            {errors.items[index]?.sgstPercent?.message}
-                                        </small>
-                                    )}
-                                </div>
-
-                                {/* IGST % */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700">
-                                        IGST %
-                                    </label>
-                                    <Controller
-                                        name={`items.${index}.igstPercent`}
-                                        control={control}
-                                        render={({ field }) => (
-                                            <InputNumber
-                                                value={field.value}
-                                                onValueChange={(e) => field.onChange(e.value ?? 0)}
-                                                placeholder="Enter IGST %"
-                                                min={0}
-                                                max={100}
-                                                suffix="%"
-                                                className="w-full"
-                                            />
-                                        )}
-                                    />
-                                    {errors.items?.[index]?.igstPercent && (
-                                        <small className="text-red-500 flex items-center gap-1">
-                                            <i className="pi pi-exclamation-circle"></i>
-                                            {errors.items[index]?.igstPercent?.message}
-                                        </small>
-                                    )}
+                                    {(() => {
+                                        const selectedProductId = watchedItems?.[index]?.productId;
+                                        const selectedProduct = products.find(p => p._id === selectedProductId);
+                                        const unit = selectedProduct?.unit?.toString()?.toUpperCase();
+                                        const showTank = unit === 'LITRE' || unit === 'LITER';
+                                        
+                                        if (!showTank) {
+                                            return <div className="text-sm text-gray-500 pt-2">Not applicable</div>;
+                                        }
+                                        
+                                        const options = (itemTanks[index] || []).map((t) => ({ 
+                                            label: `${t.tankName} - Capacity: ${t.capacity}`, 
+                                            value: t._id 
+                                        }));
+                                        
+                                        return (
+                                            <>
+                                                {itemTankLoading[index] ? (
+                                                    <div className="flex items-center gap-2 text-sm text-gray-600 pt-2">
+                                                        <i className="pi pi-spin pi-spinner"></i>
+                                                        Loading tanks...
+                                                    </div>
+                                                ) : options.length === 0 ? (
+                                                    <div className="text-sm text-gray-600 pt-2">No tank available</div>
+                                                ) : (
+                                                    <Controller
+                                                        name={`items.${index}.tankId`}
+                                                        control={control}
+                                                        render={({ field }) => (
+                                                            <Dropdown
+                                                                value={field.value}
+                                                                onChange={(e) => field.onChange(e.value)}
+                                                                options={options}
+                                                                placeholder="Select tank"
+                                                                className="w-full"
+                                                            />
+                                                        )}
+                                                    />
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>
