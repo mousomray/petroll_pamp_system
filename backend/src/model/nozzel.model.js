@@ -22,7 +22,7 @@ const nozzleSchema = new mongoose.Schema(
         },
 
         machineName: {
-            type: String, // optional (Machine-1, Machine-2)
+            type: String, 
         },
 
         isActive: {
