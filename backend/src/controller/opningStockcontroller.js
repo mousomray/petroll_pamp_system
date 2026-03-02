@@ -40,9 +40,7 @@ const createOpeningStock = async (req, res) => {
     for (const item of products) {
       const { productId, openingStock, tanks = [] } = item;
 
-      // ===============================
-      // CHECK PRODUCT
-      // ===============================
+   
       const product = await Product.findOne({
         _id: productId,
         userId
@@ -52,9 +50,7 @@ const createOpeningStock = async (req, res) => {
         throw new Error("Product not found");
       }
 
-      // ===============================
-      // PREVENT DUPLICATE OPENING STOCK
-      // ===============================
+   
       const existing = await OpningStockModle.findOne({
         userId,
         productId,
@@ -67,19 +63,17 @@ const createOpeningStock = async (req, res) => {
         );
       }
 
-      // ===============================
-      // FUEL LOGIC
-      // ===============================
+      
       if (product.type === "FUEL") {
 
-        // ✅ If opening stock is 0 → tanks optional but if provided must match
+        
         if (openingStock > 0 && !tanks.length) {
           throw new Error(
             `Tank distribution required for ${product.name}`
           );
         }
 
-        // Prevent duplicate tankIds
+       
         const tankIds = tanks.map(t => t.tankId.toString());
         const uniqueTankIds = new Set(tankIds);
         if (tankIds.length !== uniqueTankIds.size) {
@@ -97,7 +91,7 @@ const createOpeningStock = async (req, res) => {
           );
         }
 
-        // Fetch all tanks at once (better performance)
+        
         const tankDocs = await Tank.find({
           _id: { $in: tankIds },
           userId
@@ -125,7 +119,7 @@ const createOpeningStock = async (req, res) => {
           await tank.save({ session });
         }
       } else {
-        // ✅ NON FUEL should not receive tanks
+       
         if (tanks.length) {
           throw new Error(
             `Tanks not allowed for non-fuel product (${product.name})`
@@ -133,9 +127,6 @@ const createOpeningStock = async (req, res) => {
         }
       }
 
-      // ===============================
-      // CREATE OPENING STOCK
-      // ===============================
       await OpningStockModle.create(
         [{
           userId,
@@ -147,9 +138,7 @@ const createOpeningStock = async (req, res) => {
         { session }
       );
 
-      // ===============================
-      // UPDATE CURRENT STOCK
-      // ===============================
+      
       await CurrentStock.findOneAndUpdate(
         { userId, productId },
         { $set: { quantity: openingStock } },
@@ -624,16 +613,31 @@ const carryForwardFinancialYear = async (req, res) => {
 
     const today = new Date();
     const day = today.getDate();
-    const month = today.getMonth(); 
+    const month = today.getMonth(); // April = 3
 
-   
-    //if (!(day === 1 && month === 3)) {
-    //  throw new Error("Carry forward allowed only on 1st April");
-   // }
+    // ✅ Allow only AFTER or ON 1st April
+    if (!(month > 3 || (month === 3 && day >= 1))) {
+      throw new Error("Carry forward allowed only after 1st April");
+    }
 
-    const currentFY = getFinancialYear(); 
+    const currentFY = getFinancialYear();
     const nextFY = getNextFinancialYear();
 
+    // =====================================================
+    // ✅ CHECK IF ALREADY CARRIED FORWARD
+    // =====================================================
+    const alreadyForwarded = await OpningStockModle.findOne({
+      userId,
+      financialYear: nextFY
+    }).session(session);
+
+    if (alreadyForwarded) {
+      throw new Error("Financial year already carried forward");
+    }
+
+    // =====================================================
+    // GET CURRENT STOCKS
+    // =====================================================
     const currentStocks = await CurrentStock.find({
       userId
     }).session(session);
@@ -642,9 +646,11 @@ const carryForwardFinancialYear = async (req, res) => {
       throw new Error("No stock found to carry forward");
     }
 
+    // =====================================================
+    // LOOP PRODUCTS
+    // =====================================================
     for (const stock of currentStocks) {
 
-      
       const previousYearStock = await OpningStockModle.findOne({
         userId,
         productId: stock.productId,
@@ -652,31 +658,14 @@ const carryForwardFinancialYear = async (req, res) => {
       }).session(session);
 
       if (!previousYearStock) {
-        continue; // skip if no previous year record
-      }
-
-      // ===============================
-      // UPDATE PREVIOUS YEAR CLOSING
-      // ===============================
-      previousYearStock.closingStock = stock.quantity;
-      await previousYearStock.save({ session });
-
-      // ===============================
-      // CHECK IF NEXT YEAR EXISTS
-      // ===============================
-      const existingNextYear = await OpningStockModle.findOne({
-        userId,
-        productId: stock.productId,
-        financialYear: nextFY
-      }).session(session);
-
-      if (existingNextYear) {
         continue;
       }
 
-      // ===============================
-      // CREATE NEXT YEAR RECORD
-      // ===============================
+      // ✅ UPDATE PREVIOUS YEAR CLOSING STOCK
+      previousYearStock.closingStock = stock.quantity;
+      await previousYearStock.save({ session });
+
+      // ✅ CREATE NEXT YEAR RECORD
       await OpningStockModle.create(
         [{
           userId,

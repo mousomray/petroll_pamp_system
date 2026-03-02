@@ -38,14 +38,12 @@ const createPurchase = async (req, res) => {
         } = req.body;
 
         if (!supplierId) throw new Error("Supplier required");
-        if (!invoiceNo) throw new Error("Invoice number required");  // ✅ required
+        if (!invoiceNo) throw new Error("Invoice number required");  
         if (!purchaseDate) throw new Error("Purchase date required");
         if (!items || !Array.isArray(items) || items.length === 0)
             throw new Error("Purchase items required");
 
-        // ============================
-        // ✅ DUPLICATE INVOICE CHECK
-        // ============================
+       
         const existingInvoice = await PurchaseModel.findOne({
             userId,
             invoiceNo
@@ -63,9 +61,7 @@ const createPurchase = async (req, res) => {
 
         const purchaseItemsData = [];
 
-        // ============================
-        // PROCESS ITEMS
-        // ============================
+        
         for (const item of items) {
 
             if (!item.productId || !item.quantity || item.quantity <= 0)
@@ -89,9 +85,7 @@ const createPurchase = async (req, res) => {
             const baseAmount = item.quantity * costPrice;
             subTotal += baseAmount;
 
-            // ============================
-            // 🛢 TANK PRODUCT
-            // ============================
+           
             if (product.tankIds && product.tankIds.length > 0) {
 
                 if (!item.tankDistributions || item.tankDistributions.length === 0)
@@ -157,9 +151,6 @@ const createPurchase = async (req, res) => {
 
             } else {
 
-                // ============================
-                // 📦 NON-TANK PRODUCT
-                // ============================
 
                 const cgstAmount = (baseAmount * cgstPercent) / 100;
                 const sgstAmount = (baseAmount * sgstPercent) / 100;
@@ -188,9 +179,7 @@ const createPurchase = async (req, res) => {
                 });
             }
 
-            // ============================
-            // 📦 UPDATE CURRENT STOCK
-            // ============================
+          
             await CurrentStock.updateOne(
                 { userId, productId: product._id },
                 { $inc: { quantity: item.quantity } },
@@ -198,9 +187,7 @@ const createPurchase = async (req, res) => {
             );
         }
 
-        // ============================
-        // CREATE PURCHASE
-        // ============================
+     
         const purchaseDoc = await PurchaseModel.create([{
             userId,
             supplierId,
