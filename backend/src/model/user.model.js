@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { Schema, model } = mongoose;
+const {  model } = mongoose;
 
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
 
     role: {
         type: String,
-        enum: ["ADMIN", "MANAGER", "CASHIER", "ACCOUNTANT","WORKER"],
+        enum: ["ADMIN", "MANAGER", "CASHIER", "ACCOUNTANT"],
         default: "ADMIN"
     },
 
