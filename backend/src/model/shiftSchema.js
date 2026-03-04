@@ -1,3 +1,8 @@
+const mongoose = require("mongoose");
+const { Schema, model } = mongoose;
+
+
+
 const shiftSchema = new mongoose.Schema({
   workerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -8,23 +13,81 @@ const shiftSchema = new mongoose.Schema({
     ref: "Nozzle"
   },
 
-  openingReading: Number,
-  closingReading: Number,
+  openingReading: {
+    type: Number,
+    default: 0
+  },
 
-  totalSaleLitres: Number,
-  fuelRate: Number,
-  totalSaleAmount: Number,
+  closingReading: {
+    type: Number,
+    default: 0
+  },
 
-  cashCollected: Number,
-  onlineCollected: Number,
+  readingDate: {
+    type: Date,
+    default: Date.now
+  },
 
-  shortageOrExcess: Number,
+  totalSaleLitres: {
+    type: Number,
+    default: 0
+  },
 
-  shiftStart: Date,
-  shiftEnd: Date,
+  fuelRate: {
+    type: Number,
+    default: 0
+  },
+
+  totalSaleAmount: {
+    type: Number,
+    default: 0
+  },
+
+  cashCollected: {
+    type: Number,
+    default: 0
+  },
+
+  onlineCollected: {
+    type: Number,
+    default: 0
+  },
+
+  shortageOrExcess: {
+    type: Number,
+    default: 0
+  },
+
+  shortageType: {
+    type: String,
+    enum: ["SHORTAGE", "EXCESS", "NONE"],
+    default: "NONE"
+  },
+
+  shiftStart: {
+    type: Date,
+    default: Date.now
+  },
+
+  shiftEnd: {
+    type: Date
+  },
+
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+
   status: {
     type: String,
     enum: ["OPEN", "CLOSED"],
     default: "OPEN"
   }
+
 }, { timestamps: true });
+
+
+const ShiftModel = model("Shift", shiftSchema)
+
+module.exports = ShiftModel
