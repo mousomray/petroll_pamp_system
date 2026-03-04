@@ -10,18 +10,25 @@ const shiftSchema = new Schema({
     index: true
   },
 
+  nozzleIds: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "Nozzle",
+      required: true
+    }
+  ],
 
   shiftStart: {
     type: Date,
     default: Date.now
   },
 
-  
+
   shiftEnd: {
     type: Date
   },
 
- 
+
   cashCollected: {
     type: Number,
     default: 0,

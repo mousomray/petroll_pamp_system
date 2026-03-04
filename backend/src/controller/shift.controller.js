@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const ShiftModel = require("../model/shiftModel")
 const WorkerModel = require("../model/worker.model");
+const NozzleModel = require("../model/nozzel.model");
 
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
@@ -8,20 +9,38 @@ const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
 const createShift = async (req, res) => {
   try {
     const userId = req.user?._id;
-    const { workerId } = req.body;
+    const { workerId, nozzleIds } = req.body;
+
+    // 🔴 Validate workerId
     if (!workerId) {
       return res.status(400).json({
         success: false,
         message: "Worker ID is required"
       });
     }
-    const worker = await WorkerModel.findById(workerId);
+
+    // 🔴 Validate nozzleIds
+    if (!nozzleIds || !Array.isArray(nozzleIds) || nozzleIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one nozzleId is required"
+      });
+    }
+
+    // 🔎 Check Worker exists
+    const worker = await WorkerModel.findOne({
+      _id: workerId,
+      createdBy: userId
+    });
+
     if (!worker) {
       return res.status(404).json({
         success: false,
         message: "Worker not found"
       });
     }
+
+    // 🔎 Check Worker already has OPEN shift
     const existingShift = await ShiftModel.findOne({
       workerId,
       status: "OPEN"
@@ -34,9 +53,23 @@ const createShift = async (req, res) => {
       });
     }
 
+    // 🔎 Validate Nozzles exist & belong to user
+    const validNozzles = await NozzleModel.find({
+      _id: { $in: nozzleIds },
+      userId
+    });
 
+    if (validNozzles.length !== nozzleIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Some nozzleIds are invalid"
+      });
+    }
+
+    // 🚀 Create Shift
     const shift = await ShiftModel.create({
       workerId,
+      nozzleIds,
       userId,
       status: "OPEN",
       shiftStart: new Date()
@@ -49,14 +82,13 @@ const createShift = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Create Shift Error:", error);
     return res.status(500).json({
       success: false,
       message: error.message
     });
   }
 };
-
-
 
 
 const getAllShifts = async (req, res) => {
@@ -149,8 +181,14 @@ const getAllShifts = async (req, res) => {
 
 const getShiftById = async (req, res) => {
   try {
-
     const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid shift ID"
+      });
+    }
 
     const shift = await ShiftModel.aggregate([
 
@@ -164,21 +202,20 @@ const getShiftById = async (req, res) => {
       // 2️⃣ Lookup Worker
       {
         $lookup: {
-          from: "workers",   // collection name in MongoDB
+          from: "workers",
           localField: "workerId",
           foreignField: "_id",
           as: "worker"
         }
       },
-
       { $unwind: "$worker" },
 
-      // 3️⃣ Lookup Nozzles assigned to worker
+      // 3️⃣ Lookup Assigned Nozzles (🔥 FIXED PART)
       {
         $lookup: {
           from: "nozzles",
-          localField: "worker._id",
-          foreignField: "workerId",
+          localField: "nozzleIds",
+          foreignField: "_id",
           as: "nozzles"
         }
       },
@@ -201,7 +238,18 @@ const getShiftById = async (req, res) => {
             phone: "$worker.phone"
           },
 
-          nozzles: 1
+          nozzles: {
+            $map: {
+              input: "$nozzles",
+              as: "nz",
+              in: {
+                _id: "$$nz._id",
+                nozzleNumber: "$$nz.nozzleNumber",
+                fuelType: "$$nz.fuelType",
+                status: "$$nz.status"
+              }
+            }
+          }
         }
       }
 
@@ -220,15 +268,13 @@ const getShiftById = async (req, res) => {
     });
 
   } catch (error) {
-
+    console.error("Get Shift Error:", error);
     return res.status(500).json({
       success: false,
       message: error.message
     });
-
   }
 };
-
 
 
 module.exports = { createShift, getAllShifts, getShiftById };
