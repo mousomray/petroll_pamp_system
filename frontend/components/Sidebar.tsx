@@ -97,6 +97,11 @@ const Sidebar: React.FC<SidebarProps> = ({ role, user }) => {
               label: "Users",
               icon: "pi-user",
             },
+            {
+              href: "/dashboard/workers",
+              label: "Workers",
+              icon: "pi-id-card",
+            }
           ],
         },
       ],
