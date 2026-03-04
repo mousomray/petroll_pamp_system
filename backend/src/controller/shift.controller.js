@@ -146,31 +146,89 @@ const getAllShifts = async (req, res) => {
   }
 }
 
+
 const getShiftById = async (req, res) => {
   try {
+
     const { id } = req.params;
 
-    const shift = await ShiftModel.findById(id)
-      .populate("workerId");
+    const shift = await ShiftModel.aggregate([
 
-    if (!shift) {
+      // 1️⃣ Match Shift
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(id)
+        }
+      },
+
+      // 2️⃣ Lookup Worker
+      {
+        $lookup: {
+          from: "workers",   // collection name in MongoDB
+          localField: "workerId",
+          foreignField: "_id",
+          as: "worker"
+        }
+      },
+
+      { $unwind: "$worker" },
+
+      // 3️⃣ Lookup Nozzles assigned to worker
+      {
+        $lookup: {
+          from: "nozzles",
+          localField: "worker._id",
+          foreignField: "workerId",
+          as: "nozzles"
+        }
+      },
+
+      // 4️⃣ Final Projection
+      {
+        $project: {
+          _id: 1,
+          shiftStart: 1,
+          shiftEnd: 1,
+          status: 1,
+          cashCollected: 1,
+          onlineCollected: 1,
+          createdAt: 1,
+          updatedAt: 1,
+
+          worker: {
+            _id: "$worker._id",
+            name: "$worker.name",
+            phone: "$worker.phone"
+          },
+
+          nozzles: 1
+        }
+      }
+
+    ]);
+
+    if (!shift || shift.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Shift not found"
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: shift
+      data: shift[0]
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
       message: error.message
     });
+
   }
 };
+
+
 
 module.exports = { createShift, getAllShifts, getShiftById };
