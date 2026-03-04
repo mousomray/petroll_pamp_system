@@ -1,31 +1,27 @@
+const mongoose = require("mongoose");
 const ShiftModel = require("../model/shiftModel")
 const WorkerModel = require("../model/worker.model");
 
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
+
 const createShift = async (req, res) => {
   try {
     const userId = req.user?._id;
     const { workerId } = req.body;
-
     if (!workerId) {
       return res.status(400).json({
         success: false,
         message: "Worker ID is required"
       });
     }
-
-    
     const worker = await WorkerModel.findById(workerId);
-
     if (!worker) {
       return res.status(404).json({
         success: false,
         message: "Worker not found"
       });
     }
-
-    
     const existingShift = await ShiftModel.findOne({
       workerId,
       status: "OPEN"
@@ -38,7 +34,7 @@ const createShift = async (req, res) => {
       });
     }
 
-    
+
     const shift = await ShiftModel.create({
       workerId,
       userId,
@@ -102,13 +98,13 @@ const getAllShifts = async (req, res) => {
       // ✅ Search by worker name OR status
       ...(search
         ? [{
-            $match: {
-              $or: [
-                { "worker.name": { $regex: search, $options: "i" } },
-                { status: { $regex: search, $options: "i" } }
-              ]
-            }
-          }]
+          $match: {
+            $or: [
+              { "worker.name": { $regex: search, $options: "i" } },
+              { status: { $regex: search, $options: "i" } }
+            ]
+          }
+        }]
         : []),
 
       // ✅ Sort latest first
@@ -177,4 +173,4 @@ const getShiftById = async (req, res) => {
   }
 };
 
-module.exports = { createShift ,getAllShifts,getShiftById};
+module.exports = { createShift, getAllShifts, getShiftById };

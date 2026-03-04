@@ -247,4 +247,21 @@ const deleteWorker = async (req, res) => {
     }
 };
 
-module.exports = { addWorker, updateWorker, getWorkerById, getWorkers, deleteWorker }
+const dropDownWorkers = async (req,res) =>{
+    try{
+        const userId = req.user?._id
+        const workers = await workerModel.find({createdBy: userId, isActive: true})
+        return res.status(200).json({
+            success: true,
+            data: workers
+        })
+    }catch(error){
+        console.log("Error fetching dropdown workers:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch workers for dropdown"
+        });
+    }
+}
+
+module.exports = { addWorker, updateWorker, getWorkerById, getWorkers, deleteWorker, dropDownWorkers }
