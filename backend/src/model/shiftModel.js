@@ -1,0 +1,76 @@
+const mongoose = require("mongoose");
+const { Schema, model } = mongoose;
+
+const shiftSchema = new Schema({
+
+  // 🔹 Which worker is on shift
+  workerId: {
+    type: Schema.Types.ObjectId,
+    ref: "Worker",
+    required: true,
+    index: true
+  },
+
+
+  shiftStart: {
+    type: Date,
+    default: Date.now
+  },
+
+  
+  shiftEnd: {
+    type: Date
+  },
+
+ 
+  cashCollected: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
+  onlineCollected: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
+
+  shortageOrExcess: {
+    type: Number,
+    default: 0
+  },
+
+  shortageType: {
+    type: String,
+    enum: ["SHORTAGE", "EXCESS", "NONE"],
+    default: "NONE"
+  },
+
+
+  status: {
+    type: String,
+    enum: ["OPEN", "CLOSED"],
+    default: "OPEN",
+    index: true
+  },
+
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    index: true
+  }
+
+}, { timestamps: true });
+
+
+
+shiftSchema.index(
+  { workerId: 1, status: 1 },
+  { unique: true, partialFilterExpression: { status: "OPEN" } }
+);
+
+const ShiftModel = model("Shift", shiftSchema);
+
+module.exports = ShiftModel;

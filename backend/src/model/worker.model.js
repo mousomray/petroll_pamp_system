@@ -26,6 +26,7 @@ const workerSchema = new mongoose.Schema({
         type: String,
         enum: [
             "NOZZLE_BOY",
+            "SALESMAN",
             "SWEEPER",
             "SECURITY",
             "TANK_OPERATOR",
