@@ -3,7 +3,6 @@ const { Schema, model } = mongoose;
 
 const shiftSchema = new Schema({
 
-  // 🔹 Which worker is on shift
   workerId: {
     type: Schema.Types.ObjectId,
     ref: "Worker",
@@ -34,19 +33,6 @@ const shiftSchema = new Schema({
     default: 0,
     min: 0
   },
-
-
-  shortageOrExcess: {
-    type: Number,
-    default: 0
-  },
-
-  shortageType: {
-    type: String,
-    enum: ["SHORTAGE", "EXCESS", "NONE"],
-    default: "NONE"
-  },
-
 
   status: {
     type: String,
