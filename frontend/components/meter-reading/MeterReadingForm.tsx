@@ -14,8 +14,9 @@ import { Button } from "primereact/button";
 const meterReadingSchema = z.object({
   readings: z.array(
     z.object({
+      readingId: z.string(),
       nozzleId: z.string(),
-      openingReading: z.number().min(0, "Opening reading must be >= 0"),
+      closingReading: z.number().min(0, "Closing reading must be >= 0"),
     })
   ).min(1, "At least one nozzle reading is required"),
 });
@@ -24,14 +25,15 @@ type MeterReadingFormData = z.infer<typeof meterReadingSchema>;
 
 type MeterReadingFormProps = {
   shiftId: string | null;
+  shiftData?: any;
   onClose: () => void;
   onSuccess: () => void;
 };
 
-function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps) {
+function MeterReadingForm({ shiftId, shiftData: initialShiftData, onClose, onSuccess }: MeterReadingFormProps) {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [shiftData, setShiftData] = useState<any>(null);
+  const [shiftData, setShiftData] = useState<any>(initialShiftData || null);
 
   const {
     control,
@@ -51,10 +53,28 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
   });
 
   useEffect(() => {
-    if (shiftId) {
+    if (initialShiftData) {
+      // Use passed shift data
+      initializeReadings(initialShiftData);
+    } else if (shiftId) {
+      // Fetch shift data if not passed
       fetchShiftData();
     }
-  }, [shiftId]);
+  }, [shiftId, initialShiftData]);
+
+  const initializeReadings = (data: any) => {
+    // Initialize readings array with nozzles from shift
+    // Extract readingId from meterReading._id, prefill closingReading with openingReading or current/initial
+    const initialReadings = (data.nozzles || []).map((nozzle: any) => ({
+      readingId: nozzle.meterReading?._id || "",
+      nozzleId: nozzle._id,
+      closingReading: nozzle.meterReading?.openingReading ?? nozzle.currentReading ?? nozzle.initialReading ?? 0,
+    }));
+
+    reset({
+      readings: initialReadings,
+    });
+  };
 
   const fetchShiftData = async () => {
     try {
@@ -62,17 +82,7 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
       const res = await axiosInstance.get(`/api/shift/get-single-shift/${shiftId}`);
       const data = res.data.data;
       setShiftData(data);
-
-      // Initialize readings array with nozzles from shift
-      // Prefill openingReading from nozzle.currentReading (fallback to initialReading or 0)
-      const initialReadings = (data.nozzles || []).map((nozzle: any) => ({
-        nozzleId: nozzle._id,
-        openingReading: nozzle.currentReading ?? nozzle.initialReading ?? 0,
-      }));
-
-      reset({
-        readings: initialReadings,
-      });
+      initializeReadings(data);
     } catch (err: any) {
       if (axios.isAxiosError(err)) {
         toast.error(err.response?.data?.message || "Failed to load shift data");
@@ -93,8 +103,8 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
         readings: form.readings,
       };
 
-      const res = await axiosInstance.post("/api/meter-reading/create-opening", payload);
-      toast.success(res.data?.message || "Opening readings recorded successfully");
+      const res = await axiosInstance.post("/api/shift/close-shift", payload);
+      toast.success(res.data?.message || "Closing readings recorded successfully");
       onSuccess();
     } catch (err: any) {
       if (axios.isAxiosError(err)) {
@@ -146,7 +156,7 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
             <i className="pi pi-list text-purple-600"></i>
-            Nozzle Opening Readings
+            Nozzle Closing Readings
           </h3>
 
           <div className="space-y-3">
@@ -162,7 +172,7 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
                       Nozzle
                     </label>
                     <InputText
-                      value={nozzle?.nozzleNumber || "Unknown Nozzle"}
+                      value={nozzle?.nozzleName || nozzle?.nozzleNumber || "Unknown Nozzle"}
                       disabled
                       className="w-full bg-white"
                     />
@@ -170,10 +180,10 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
 
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium text-gray-700">
-                      Opening Reading
+                      Closing Reading <span className="text-red-500">*</span>
                     </label>
                     <Controller
-                      name={`readings.${index}.openingReading`}
+                      name={`readings.${index}.closingReading`}
                       control={control}
                       render={({ field }) => (
                         <InputNumber
@@ -183,15 +193,15 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
                           minFractionDigits={0}
                           maxFractionDigits={2}
                           min={0}
-                          placeholder="Enter opening reading"
+                          placeholder="Enter closing reading"
                           className="w-full"
                         />
                       )}
                     />
-                    {errors.readings?.[index]?.openingReading && (
+                    {errors.readings?.[index]?.closingReading && (
                       <small className="text-red-500 flex items-center gap-1">
                         <i className="pi pi-exclamation-circle text-xs"></i>
-                        {errors.readings[index]?.openingReading?.message}
+                        {errors.readings[index]?.closingReading?.message}
                       </small>
                     )}
                   </div>
@@ -214,9 +224,9 @@ function MeterReadingForm({ shiftId, onClose, onSuccess }: MeterReadingFormProps
             <div className="text-sm text-blue-800">
               <p className="font-medium mb-1">Important:</p>
               <ul className="list-disc list-inside space-y-1 text-blue-700">
-                <li>Record the current meter reading for each nozzle</li>
+                <li>Record the final meter reading for each nozzle</li>
                 <li>Ensure readings are accurate before submitting</li>
-                <li>These readings will be used to calculate sales</li>
+                <li>Closing readings will be used to calculate total sales</li>
               </ul>
             </div>
           </div>

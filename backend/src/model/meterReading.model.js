@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { model , Schema } = mongoose;
+const { model, Schema } = mongoose;
 
 
 const meterReadingSchema = new Schema({
@@ -18,12 +18,10 @@ const meterReadingSchema = new Schema({
 
   openingReading: {
     type: Number,
-    required: true
   },
 
   closingReading: {
     type: Number,
-    required: true
   },
 
   totalLitres: {

@@ -139,23 +139,58 @@ function Page() {
     );
   };
 
-  const shortageTypeTemplate = (rowData: any) => {
-    const typeColors: Record<string, string> = {
-      NONE: "bg-blue-100 text-blue-800",
-      SHORTAGE: "bg-red-100 text-red-800",
-      EXCESS: "bg-green-100 text-green-800",
-    };
-
+  
+  const nozzlesTemplate = (rowData: any) => {
+    if (!rowData.nozzles || rowData.nozzles.length === 0) return <span className="text-gray-400">N/A</span>;
     return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${typeColors[rowData.shortageType] || "bg-gray-100 text-gray-800"}`}>
-        {rowData.shortageType}
-      </span>
+      <div className="flex flex-col gap-1">
+        {rowData.nozzles.map((n: any) => (
+          <div key={n._id} className="text-sm">
+            <div className="font-medium">{n.nozzleName ?? n.nozzleNumber ?? n._id}</div>
+            <div className="text-xs text-gray-500">{n.tank?.tankName || n.product?.name || ''}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+  const openingReadingsTemplate = (rowData: any) => {
+    if (!rowData.nozzles || rowData.nozzles.length === 0) return <span className="text-gray-400">N/A</span>;
+    return (
+      <div className="flex flex-col gap-1">
+        {rowData.nozzles.map((n: any) => (
+          <div key={n._id} className="text-sm font-medium text-blue-700">
+            {n.meterReading?.openingReading?.toLocaleString() ?? '—'}
+          </div>
+        ))}
+      </div>
     );
   };
 
-  const amountTemplate = (field: string) => (rowData: any) => (
-    <span className="font-semibold text-gray-800">₹{rowData[field]?.toLocaleString() || 0}</span>
-  );
+  const closingReadingsTemplate = (rowData: any) => {
+    if (!rowData.nozzles || rowData.nozzles.length === 0) return <span className="text-gray-400">N/A</span>;
+    return (
+      <div className="flex flex-col gap-1">
+        {rowData.nozzles.map((n: any) => (
+          <div key={n._id} className="text-sm font-medium text-green-700">
+            {n.meterReading?.closingReading?.toLocaleString() ?? '—'}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const totalSalesTemplate = (rowData: any) => {
+    if (!rowData.nozzles || rowData.nozzles.length === 0) return <span className="text-gray-400">N/A</span>;
+    return (
+      <div className="flex flex-col gap-1">
+        {rowData.nozzles.map((n: any) => (
+          <div key={n._id} className="text-sm font-medium text-purple-700">
+            {n.meterReading?.totalSale?.toLocaleString() ?? '—'}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const dateTemplate = (field: string) => (rowData: any) => (
     <div className="text-sm">
@@ -193,7 +228,7 @@ function Page() {
 
   const menuModel = [
     {
-      label: "Opening Reading",
+      label: "Closing Reading",
       icon: "pi pi-book",
       command: () => {
         if (selectedShift) handleOpeningReading(selectedShift);
@@ -240,6 +275,8 @@ function Page() {
     </div>
   );
 
+  
+
   return (
     <div className="w-full flex justify-center items-center">
       <div className="w-full card bg-white p-4 rounded-lg shadow">
@@ -265,11 +302,11 @@ function Page() {
         >
           <Column header="Worker" body={workerTemplate} style={{ minWidth: "200px" }} />
           <Column header="Shift Start" body={dateTemplate("shiftStart")} sortable style={{ minWidth: "150px" }} />
-          <Column header="Cash" body={amountTemplate("cashCollected")} style={{ minWidth: "100px" }} />
-          <Column header="Online" body={amountTemplate("onlineCollected")} style={{ minWidth: "100px" }} />
-          <Column header="Shortage/Excess" body={amountTemplate("shortageOrExcess")} style={{ minWidth: "120px" }} />
-          <Column header="Type" body={shortageTypeTemplate} style={{ minWidth: "100px" }} />
           <Column header="Status" body={statusTemplate} style={{ minWidth: "100px" }} />
+          <Column header="Nozzles" body={nozzlesTemplate} style={{ minWidth: "150px" }} />
+          <Column header="Opening" body={openingReadingsTemplate} style={{ minWidth: "120px" }} />
+          <Column header="Closing" body={closingReadingsTemplate} style={{ minWidth: "120px" }} />
+          <Column header="Total Litres" body={totalSalesTemplate} style={{ minWidth: "120px" }} />
           <Column header="Created" body={dateTemplate("createdAt")} style={{ minWidth: "150px" }} />
           <Column header="Actions" body={actionTemplate} style={{ minWidth: "80px" }} />
         </DataTable>
@@ -300,8 +337,8 @@ function Page() {
                 <i className="pi pi-book text-white text-xl"></i>
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">Opening Meter Reading</h2>
-                <p className="text-sm text-white/90">Record initial meter readings for shift</p>
+                <h2 className="text-lg font-semibold text-white">Closing Meter Reading</h2>
+                <p className="text-sm text-white/90">Record final meter readings for shift</p>
               </div>
             </div>
           }
@@ -315,6 +352,7 @@ function Page() {
         >
           <MeterReadingForm
             shiftId={selectedShift?._id || null}
+            shiftData={selectedShift}
             onClose={() => {
               setMeterReadingVisible(false);
               setSelectedShift(null);

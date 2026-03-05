@@ -2,9 +2,10 @@ const mongoose = require("mongoose");
 const ShiftModel = require("../model/shiftModel")
 const WorkerModel = require("../model/worker.model");
 const NozzleModel = require("../model/nozzel.model");
-const {closeShiftMultipleReadingsSchema} = require("../schema/shiftSchema")
-const  MeterReadingModel = require("../model/meterReading.model")
-
+const { closeShiftMultipleReadingsSchema } = require("../schema/shiftSchema")
+const MeterReadingModel = require("../model/meterReading.model")
+const { z } = require("zod");
+const { createShiftSchema } = require("../schema/shiftSchema");
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
 
@@ -15,7 +16,6 @@ const createShift = async (req, res) => {
     const userId = req.user?._id;
     const { workerId, nozzles = [] } = validatedData;
 
-    // 🔎 Find worker
     const worker = await WorkerModel.findOne({
       _id: workerId,
       createdBy: userId
@@ -28,7 +28,6 @@ const createShift = async (req, res) => {
       });
     }
 
-    // 🔎 Worker already has open shift
     const existingShift = await ShiftModel.findOne({
       workerId,
       status: "OPEN"
@@ -43,7 +42,8 @@ const createShift = async (req, res) => {
 
     let nozzleIds = [];
 
-    // 🚨 If worker is NOZZLE_BOY
+    console.log("Worker Type:", nozzleIds);
+
     if (worker.workerType === "NOZZLE_BOY") {
 
       if (!nozzles || nozzles.length === 0) {
@@ -121,16 +121,7 @@ const createShift = async (req, res) => {
     });
 
   } catch (error) {
-
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        errors: error.errors
-      });
-    }
-
     console.error("Create Shift Error:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message
@@ -140,6 +131,7 @@ const createShift = async (req, res) => {
 
 const getAllShifts = async (req, res) => {
   try {
+
     const userId = req.user._id;
 
     let { page = 1, limit, search } = req.query;
@@ -147,16 +139,16 @@ const getAllShifts = async (req, res) => {
     page = parseInt(page);
     limit = parseInt(limit) || DEFAULT_PAGE_SIZE;
 
-    const matchStage = {
-      userId: new mongoose.Types.ObjectId(userId),
-    };
-
     const pipeline = [
 
-    
-      { $match: matchStage },
+      // 1️⃣ Match User
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId)
+        }
+      },
 
-    
+      // 2️⃣ Worker
       {
         $lookup: {
           from: "workers",
@@ -166,30 +158,154 @@ const getAllShifts = async (req, res) => {
         }
       },
 
-      
+      { $unwind: { path: "$worker", preserveNullAndEmptyArrays: true } },
+
+      // 3️⃣ Nozzles
       {
-        $unwind: {
-          path: "$worker",
-          preserveNullAndEmptyArrays: true
+        $lookup: {
+          from: "nozzles",
+          localField: "nozzleIds",
+          foreignField: "_id",
+          as: "nozzles"
         }
       },
 
-    
+      { $unwind: { path: "$nozzles", preserveNullAndEmptyArrays: true } },
+
+      // 4️⃣ Tank
+      {
+        $lookup: {
+          from: "tanks",
+          localField: "nozzles.tankId",
+          foreignField: "_id",
+          as: "tank"
+        }
+      },
+
+      { $unwind: { path: "$tank", preserveNullAndEmptyArrays: true } },
+
+      // 5️⃣ Product
+      {
+        $lookup: {
+          from: "products",
+          localField: "tank.productId",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+
+      // 6️⃣ Meter Reading
+      {
+        $lookup: {
+          from: "meterreadings",
+          let: {
+            shiftId: "$_id",
+            nozzleId: "$nozzles._id"
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$shiftId", "$$shiftId"] },
+                    { $eq: ["$nozzleId", "$$nozzleId"] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: "meterReading"
+        }
+      },
+
+      { $unwind: { path: "$meterReading", preserveNullAndEmptyArrays: true } },
+
+      // 7️⃣ Search
       ...(search
         ? [{
           $match: {
             $or: [
               { "worker.name": { $regex: search, $options: "i" } },
+              { "nozzles.nozzleNumber": { $regex: search, $options: "i" } },
+              { "product.name": { $regex: search, $options: "i" } },
               { status: { $regex: search, $options: "i" } }
             ]
           }
         }]
         : []),
 
-      
+      // 8️⃣ Group
+      {
+        $group: {
+          _id: "$_id",
+
+          shiftStart: { $first: "$shiftStart" },
+          shiftEnd: { $first: "$shiftEnd" },
+          status: { $first: "$status" },
+          createdAt: { $first: "$createdAt" },
+
+          worker: { $first: "$worker" },
+
+          nozzles: {
+            $push: {
+
+              _id: "$nozzles._id",
+
+              nozzleName: "$nozzles.nozzleNumber",
+
+              tank: {
+                _id: "$tank._id",
+                name: "$tank.name",
+                quantity: "$tank.quantity"
+              },
+
+              product: {
+                _id: "$product._id",
+                name: "$product.name",
+                sellingPrice: "$product.sellingPrice",
+                costPrice: "$product.costPrice"
+              },
+
+              meterReading: {
+                _id: "$meterReading._id",
+
+                openingReading: "$meterReading.openingReading",
+                closingReading: "$meterReading.closingReading",
+
+                // ✅ Meter Reading table থেকে
+                totalLitres: "$meterReading.totalLitres",
+
+                // ✅ Auto calculation
+                totalSale: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ifNull: ["$meterReading.closingReading", false] },
+                        { $ifNull: ["$meterReading.openingReading", false] }
+                      ]
+                    },
+                    {
+                      $subtract: [
+                        "$meterReading.closingReading",
+                        "$meterReading.openingReading"
+                      ]
+                    },
+                    0
+                  ]
+                }
+              }
+
+            }
+          }
+        }
+      },
+
+      // 9️⃣ Sort
       { $sort: { createdAt: -1 } },
 
-   
+      // 🔟 Pagination
       {
         $facet: {
           data: [
@@ -201,6 +317,7 @@ const getAllShifts = async (req, res) => {
           ]
         }
       }
+
     ];
 
     const result = await ShiftModel.aggregate(pipeline);
@@ -218,19 +335,19 @@ const getAllShifts = async (req, res) => {
     });
 
   } catch (error) {
+
     return res.status(500).json({
       success: false,
       message: error.message
     });
+
   }
-}
+};
 
 
 const getShiftById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -239,14 +356,14 @@ const getShiftById = async (req, res) => {
     }
 
     const shift = await ShiftModel.aggregate([
-     
+
       {
         $match: {
           _id: new mongoose.Types.ObjectId(id),
         },
       },
 
-      
+
       {
         $lookup: {
           from: "workers",
@@ -262,7 +379,7 @@ const getShiftById = async (req, res) => {
         },
       },
 
-     
+
       {
         $lookup: {
           from: "nozzles",
@@ -272,7 +389,7 @@ const getShiftById = async (req, res) => {
         },
       },
 
-      
+
       {
         $project: {
           _id: 1,
@@ -299,7 +416,7 @@ const getShiftById = async (req, res) => {
                 nozzleNumber: "$$nz.nozzleNumber",
                 fuelType: "$$nz.fuelType",
                 status: "$$nz.status",
-                currentReading: "$$nz.currentReading", 
+                currentReading: "$$nz.currentReading",
               },
             },
           },
@@ -307,7 +424,7 @@ const getShiftById = async (req, res) => {
       },
     ]);
 
-   
+
     if (!shift || shift.length === 0) {
       return res.status(404).json({
         success: false,
@@ -327,25 +444,26 @@ const getShiftById = async (req, res) => {
     });
   }
 };
+
+
 const closeShift = async (req, res) => {
   try {
     const validatedData = closeShiftMultipleReadingsSchema.parse(req.body);
     const { shiftId, readings } = validatedData;
-    const userId = req.user?._id; 
+    const userId = req.user?._id;
 
-   
     const shift = await ShiftModel.findOne({ _id: shiftId, status: "OPEN" });
     if (!shift) {
       return res.status(404).json({ success: false, message: "Open shift not found" });
     }
 
-    
+
     const worker = await WorkerModel.findById(shift.workerId);
     if (!worker) {
       return res.status(404).json({ success: false, message: "Worker not found for this shift" });
     }
 
- 
+
     if (worker.workerType === "NOZZLE_BOY" && readings && readings.length > 0) {
       const meterReadingPromises = readings.map(async (r) => {
         let meterReading = r.readingId
@@ -353,7 +471,7 @@ const closeShift = async (req, res) => {
           : null;
 
         if (!meterReading) {
-         
+
           const lastReading = await MeterReadingModel.findOne({
             shiftId: shift._id,
             nozzleId: r.nozzleId
@@ -380,7 +498,7 @@ const closeShift = async (req, res) => {
       await Promise.all(meterReadingPromises);
     }
 
-   
+
     shift.status = "CLOSED";
     shift.shiftEnd = new Date();
     await shift.save();
