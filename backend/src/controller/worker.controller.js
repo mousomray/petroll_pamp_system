@@ -250,7 +250,7 @@ const deleteWorker = async (req, res) => {
 const dropDownWorkers = async (req,res) =>{
     try{
         const userId = req.user?._id
-        const workers = await workerModel.find({createdBy: userId, isActive: true})
+        const workers = await workerModel.find({createdBy: userId,workerType: "NOZZLE_BOY", isActive: true})
         return res.status(200).json({
             success: true,
             data: workers

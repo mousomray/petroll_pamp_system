@@ -278,8 +278,8 @@ function Page() {
         >
           <Column field="nozzleNumber" header="Nozzle Number" sortable />
           <Column
-  header="Tank ID"
-  body={(rowData: any) => rowData.tank?._id || "N/A"}
+  header="Tank Name"
+  body={(rowData: any) => rowData.tank?.tankName || "N/A"}
 />
           <Column field="machineName" header="Machine Name" />
           <Column header="Status" body={statusTemplate} />
