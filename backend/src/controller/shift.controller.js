@@ -10,6 +10,7 @@ const TankModel = require("../model/tank.model")
 const SalesModel = require("../model/sales.model")
 const ProductModel = require("../model/product.model")
 const SaleItemModel = require("../model/saleItem.model")
+const CurrentStockModel = require("../model/currentStock.model")
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
 
@@ -455,6 +456,7 @@ const closeShift = async (req, res) => {
 
     const validatedData = closeShiftMultipleReadingsSchema.parse(req.body);
     const { shiftId, readings } = validatedData;
+
     const userId = req.user?._id;
 
     const shift = await ShiftModel.findOne({
@@ -480,7 +482,7 @@ const closeShift = async (req, res) => {
     }
 
     const tankUsage = {};
-    const nozzleUsage = {}; // nozzle wise litres
+    const nozzleUsage = {};
 
     if (worker.workerType === "NOZZLE_BOY" && readings?.length) {
 
@@ -538,7 +540,7 @@ const closeShift = async (req, res) => {
       _id: { $in: tankIds }
     });
 
-    // ✅ Prevent negative tank
+    // Prevent negative tank
     for (const tank of tanks) {
 
       const used = tankUsage[tank._id.toString()];
@@ -551,7 +553,6 @@ const closeShift = async (req, res) => {
       }
     }
 
-   
     const products = await ProductModel.find({
       tankIds: { $in: tankIds },
       type: "FUEL",
@@ -575,6 +576,9 @@ const closeShift = async (req, res) => {
 
     const saleItems = [];
 
+    // product wise usage
+    const productUsage = {};
+
     for (const nozzleId in nozzleUsage) {
 
       const litres = nozzleUsage[nozzleId];
@@ -594,6 +598,14 @@ const closeShift = async (req, res) => {
 
       totalQty += litres;
       totalAmount += amount;
+
+      const productId = product._id.toString();
+
+      if (!productUsage[productId]) {
+        productUsage[productId] = 0;
+      }
+
+      productUsage[productId] += litres;
 
       saleItems.push({
         saleId: sales._id,
@@ -615,7 +627,39 @@ const closeShift = async (req, res) => {
 
     await sales.save();
 
-   
+    // 🔴 Reduce quantity from CurrentStock
+    for (const productId in productUsage) {
+
+      const usedQty = productUsage[productId];
+
+      const stock = await CurrentStockModel.findOne({
+        userId,
+        productId
+      });
+
+      if (!stock) {
+        return res.status(400).json({
+          success: false,
+          message: "Current stock not found"
+        });
+      }
+
+      if (stock.quantity < usedQty) {
+        return res.status(400).json({
+          success: false,
+          message: "Not enough stock available"
+        });
+      }
+
+      await CurrentStockModel.updateOne(
+        { userId, productId },
+        {
+          $inc: { quantity: -usedQty }
+        }
+      );
+    }
+
+    // Reduce tank quantity
     for (const tank of tanks) {
 
       const used = tankUsage[tank._id.toString()];
@@ -660,6 +704,6 @@ const closeShift = async (req, res) => {
     });
 
   }
-}
+};
 
 module.exports = { createShift, getAllShifts, getShiftById, closeShift };
