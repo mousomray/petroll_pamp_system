@@ -28,10 +28,7 @@ const salesSchema = new Schema({
     trim: true
   },
 
-  totalLitres: {
-    type: Number,
-    default: 0
-  },
+ 
 
   totalQty: {
     type: Number,

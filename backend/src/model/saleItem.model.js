@@ -22,10 +22,6 @@ const saleItemSchema = new Schema({
     ref: "Nozzle"
   },
 
-  litres: {
-    type: Number,
-    default: 0
-  },
 
   qty: {
     type: Number,
