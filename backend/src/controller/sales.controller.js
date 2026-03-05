@@ -1,4 +1,4 @@
-
+const mongoose = require("mongoose")
 const SaleItemModel = require("../model/saleItem.model")
 const SalesModel = require("../model/sales.model")
 
@@ -6,11 +6,11 @@ const ShiftModel = require("../model/shiftModel")
 const NozzleModel = require("../model/nozzel.model")
 const MeterReadingModel = require("../model/meterReading.model")
 const ProductModel = require("../model/product.model")
-const {createAccessorySaleSchema} = require("../schema/saleSchema")
+const { createAccessorySaleSchema } = require("../schema/saleSchema")
+
 
 const createShiftWiseSales = async (req, res) => {
   try {
-
     const { id } = req.params;
     const userId = req.user?._id;
 
@@ -23,15 +23,14 @@ const createShiftWiseSales = async (req, res) => {
     if (!shift) {
       return res.status(404).json({
         success: false,
-        message: "Shift not found"
+        message: "Shift not found or not closed"
       });
     }
 
-    
     const nozzles = await NozzleModel.find({
       _id: { $in: shift.nozzleIds },
       userId
-    }).select("_id nozzleNumber tank");
+    }).select("_id nozzleNumber tankId");
 
     if (!nozzles.length) {
       return res.status(400).json({
@@ -40,18 +39,45 @@ const createShiftWiseSales = async (req, res) => {
       });
     }
 
-   
-    const tankIds = [...new Set(nozzles.map(n => n.tank.toString()))];
+    // Safety: Remove any nozzle without tankId
+    const validNozzles = nozzles.filter(n => n.tankId);
+    if (!validNozzles.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid nozzles with tank assigned"
+      });
+    }
 
-   
+    const tankIds = [...new Set(validNozzles.map(n => n.tankId.toString()))];
+
+    const tanks = await TankModel.find({
+      _id: { $in: tankIds },
+      userId
+    }).select("_id productId");
+
+    if (!tanks.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Tanks not found"
+      });
+    }
+
+    const productIds = [...new Set(tanks.map(t => t.productId.toString()))];
+
     const products = await ProductModel.find({
-      tankIds: { $in: tankIds },
+      _id: { $in: productIds },
       userId,
       type: "FUEL",
       isActive: true
     });
 
-    
+    if (!products.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Products not found"
+      });
+    }
+
     const meterData = await MeterReadingModel.aggregate([
       {
         $match: {
@@ -74,7 +100,6 @@ const createShiftWiseSales = async (req, res) => {
       });
     }
 
-    
     const invoiceNumber = `INV-${Date.now()}`;
 
     let totalLitres = 0;
@@ -92,14 +117,19 @@ const createShiftWiseSales = async (req, res) => {
     const saleItems = [];
 
     for (const reading of meterData) {
-
-      const nozzle = nozzles.find(n => n._id.toString() === reading._id.toString());
+      const nozzle = validNozzles.find(
+        n => n._id.toString() === reading._id.toString()
+      );
       if (!nozzle) continue;
 
-      const product = products.find(p =>
-        p.tankIds.some(t => t.toString() === nozzle.tank.toString())
+      const tank = tanks.find(
+        t => t._id.toString() === nozzle.tankId?.toString()
       );
+      if (!tank) continue;
 
+      const product = products.find(
+        p => p._id.toString() === tank.productId.toString()
+      );
       if (!product) continue;
 
       const litres = reading.totalLitres;
@@ -129,65 +159,34 @@ const createShiftWiseSales = async (req, res) => {
 
     await SaleItemModel.insertMany(saleItems);
 
-    
     sales.totalLitres = totalLitres;
     sales.totalAmount = totalAmount;
+
     await sales.save();
-
-
-    
 
     return res.status(200).json({
       success: true,
       message: "Sales created successfully",
-      data: {
-        sales,
-        saleItems
-      }
+      data: { sales, saleItems }
     });
 
   } catch (error) {
-
     console.error("Create Sales Error:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message
     });
-
   }
 };
 
 
 const createSalesForAccessory = async (req, res) => {
   try {
-
     const userId = req.user?._id;
-    
-    const parsedData = createAccessorySaleSchema.parse(req.body);
 
-    const { shiftId, items, paymentMethod } = parsedData;
-
-    /*
-      items example
-      [
-        { productId: "...", qty: 2 },
-        { productId: "...", qty: 1 }
-      ]
-    */
-
-    const shift = await ShiftModel.findOne({
-      _id: shiftId,
-      userId,
-      status: "OPEN"
-    });
-
-    if (!shift) {
-      return res.status(404).json({
-        success: false,
-        message: "Shift not found or not open"
-      });
-    }
+    // Validate input
+    const parsedData = req.body;
+    const { items, paymentMethod } = parsedData;
 
     if (!items || items.length === 0) {
       return res.status(400).json({
@@ -196,8 +195,21 @@ const createSalesForAccessory = async (req, res) => {
       });
     }
 
-    const productIds = items.map(i => i.productId);
+    // Find user's OPEN shift
+    const shift = await ShiftModel.findOne({
+      userId,
+      status: "OPEN"
+    });
 
+    if (!shift) {
+      return res.status(400).json({
+        success: false,
+        message: "No open shift found for this user"
+      });
+    }
+
+    // Fetch products
+    const productIds = items.map(i => i.productId);
     const products = await ProductModel.find({
       _id: { $in: productIds },
       userId,
@@ -212,13 +224,13 @@ const createSalesForAccessory = async (req, res) => {
       });
     }
 
+    // Create sale
     const invoiceNumber = `INV-${Date.now()}`;
-
     let totalQty = 0;
     let totalAmount = 0;
 
     const sales = await SalesModel.create({
-      shiftId,
+      shiftId: shift._id,
       workerId: shift.workerId,
       saleType: "ACCESSORY",
       invoiceNumber,
@@ -231,11 +243,7 @@ const createSalesForAccessory = async (req, res) => {
     const saleItems = [];
 
     for (const item of items) {
-
-      const product = products.find(
-        p => p._id.toString() === item.productId
-      );
-
+      const product = products.find(p => p._id.toString() === item.productId);
       if (!product) continue;
 
       const qty = item.qty;
@@ -266,7 +274,6 @@ const createSalesForAccessory = async (req, res) => {
 
     sales.totalQty = totalQty;
     sales.totalAmount = totalAmount;
-
     await sales.save();
 
     return res.status(200).json({
@@ -279,15 +286,12 @@ const createSalesForAccessory = async (req, res) => {
     });
 
   } catch (error) {
-
     console.error("Accessory Sales Error:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message
     });
-
   }
 };
 
-module.exports = {createShiftWiseSales,createSalesForAccessory}
+module.exports = { createShiftWiseSales, createSalesForAccessory }

@@ -39,6 +39,7 @@ const nozzelRoutes = require("./src/routes/nozzel.routes.js")
 const workerRoutes = require("./src/routes/worker.routes.js")
 const shiftRoutes = require("./src/routes/shift.routes.js")
 const meterReadingRoutes = require("./src/routes/meterReding.routes.js")
+const salesRoutes = require("./src/routes/sales.routes.js")
 const dashboardRoutes = require("./src/routes/dashboard.routes.js")
 
 app.use("/api/register", registerRoutes)
@@ -54,6 +55,7 @@ app.use("/api/nozzle", nozzelRoutes)
 app.use("/api/worker", workerRoutes)
 app.use("/api/shift", shiftRoutes)
 app.use("/api/meter-reading", meterReadingRoutes)
+app.use("/api/sales", salesRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 
 const port = process.env.PORT
