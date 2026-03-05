@@ -2,18 +2,23 @@ const mongoose = require("mongoose");
 const { Schema, model } = mongoose;
 
 const salesSchema = new Schema({
+
   shiftId: {
     type: Schema.Types.ObjectId,
     ref: "Shift",
-    required: true,
     index: true
   },
 
   workerId: {
     type: Schema.Types.ObjectId,
     ref: "Worker",
-    required: true,
     index: true
+  },
+
+  saleType: {
+    type: String,
+    enum: ["FUEL", "ACCESSORY"],
+    required: true
   },
 
   invoiceNumber: {
@@ -23,23 +28,14 @@ const salesSchema = new Schema({
     trim: true
   },
 
- 
-  cashCollected: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-
-  onlineCollected: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-
   totalLitres: {
     type: Number,
-    required: true,
-    min: 0
+    default: 0
+  },
+
+  totalQty: {
+    type: Number,
+    default: 0
   },
 
   totalAmount: {
@@ -48,15 +44,22 @@ const salesSchema = new Schema({
     min: 0
   },
 
+  paymentMethod: {
+    type: String,
+    enum: ["CASH", "UPI", "CARD"],
+    default: "CASH"
+  },
+
   userId: {
     type: Schema.Types.ObjectId,
     ref: "User",
     required: true,
     index: true
   }
+
 }, { timestamps: true });
 
-salesSchema.index({ shiftId: 1, workerId: 1, createdAt: -1 });
+salesSchema.index({ shiftId: 1, createdAt: -1 });
 
 const SalesModel = model("Sales", salesSchema);
 

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const { Schema, model } = mongoose;
 
 const saleItemSchema = new Schema({
+
   saleId: {
     type: Schema.Types.ObjectId,
     ref: "Sales",
@@ -18,26 +19,27 @@ const saleItemSchema = new Schema({
 
   nozzleId: {
     type: Schema.Types.ObjectId,
-    ref: "Nozzle",
-    required: true
+    ref: "Nozzle"
   },
 
   litres: {
     type: Number,
-    required: true,
-    min: 0
+    default: 0
   },
 
-  pricePerLitre: {
+  qty: {
     type: Number,
-    required: true,
-    min: 0
+    default: 0
+  },
+
+  price: {
+    type: Number,
+    required: true
   },
 
   amount: {
     type: Number,
-    required: true,
-    min: 0
+    required: true
   },
 
   userId: {
@@ -45,9 +47,11 @@ const saleItemSchema = new Schema({
     ref: "User",
     required: true
   }
+
 }, { timestamps: true });
 
-saleItemSchema.index({ saleId: 1, productId: 1, nozzleId: 1 });
+saleItemSchema.index({ saleId: 1, productId: 1 });
 
 const SaleItemModel = model("SaleItem", saleItemSchema);
+
 module.exports = SaleItemModel;
