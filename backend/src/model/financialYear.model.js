@@ -9,7 +9,7 @@ const financialYearSchema = new mongoose.Schema({
     },
 
     name: {
-        type: String, // "2024-2025"
+        type: String, 
         required: true
     },
 
