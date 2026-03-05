@@ -194,17 +194,7 @@ const createSalesForAccessory = async (req, res) => {
       throw new Error("No items provided");
     }
 
-    // ✅ Find OPEN shift
-    const shift = await ShiftModel.findOne({
-      userId,
-      status: "OPEN"
-    }).session(session);
-
-    if (!shift) {
-      throw new Error("No open shift found for this user");
-    }
-
-    // ✅ Fetch products
+    // Fetch accessory products
     const productIds = items.map(i => i.productId);
     const products = await ProductModel.find({
       _id: { $in: productIds },
@@ -217,14 +207,31 @@ const createSalesForAccessory = async (req, res) => {
       throw new Error("Accessory products not found");
     }
 
-    // ✅ Create sale
+    // Fetch current stock for all products
+    const stocks = await CurrentStock.find({
+      userId,
+      productId: { $in: productIds }
+    }).session(session);
+
+    const stockMap = {};
+    stocks.forEach(s => {
+      stockMap[s.productId.toString()] = s.quantity;
+    });
+
+    // Validate stock availability
+    for (const item of items) {
+      const availableQty = stockMap[item.productId] || 0;
+      if (item.qty > availableQty) {
+        throw new Error(`Not enough stock for product ${item.productId}. Available: ${availableQty}, Requested: ${item.qty}`);
+      }
+    }
+
+    // Create sale
     const invoiceNumber = `INV-${Date.now()}`;
     let totalQty = 0;
     let totalAmount = 0;
 
     const sales = await SalesModel.create([{
-      shiftId: shift._id,
-      workerId: shift.workerId,
       saleType: "ACCESSORY",
       invoiceNumber,
       totalQty: 0,
@@ -256,14 +263,14 @@ const createSalesForAccessory = async (req, res) => {
         userId
       });
 
-      // ✅ Update Current Stock
+      // Update Current Stock
       await CurrentStock.updateOne(
         { userId, productId: product._id },
         { $inc: { quantity: -qty } },
-        { upsert: true, session }
+        { session }
       );
 
-      // ✅ Update Opening Stock
+      // Update Opening Stock
       const currentYear = new Date().getFullYear();
       const nextYear = currentYear + 1;
       const financialYear = `${currentYear}-${nextYear}`;
@@ -279,7 +286,6 @@ const createSalesForAccessory = async (req, res) => {
         openingStock.closingStock -= qty;
         await openingStock.save({ session });
       } else {
-        // Create if not exist
         await OpeningStockModel.create([{
           userId,
           productId: product._id,
@@ -347,28 +353,6 @@ const getSalesList = async (req, res) => {
     const pipeline = [
       { $match: matchStage },
 
-      // Lookup shift info
-      {
-        $lookup: {
-          from: "shifts",
-          localField: "shiftId",
-          foreignField: "_id",
-          as: "shift"
-        }
-      },
-      { $unwind: { path: "$shift", preserveNullAndEmptyArrays: true } },
-
-      // Lookup worker info
-      {
-        $lookup: {
-          from: "workers",
-          localField: "workerId",
-          foreignField: "_id",
-          as: "worker"
-        }
-      },
-      { $unwind: { path: "$worker", preserveNullAndEmptyArrays: true } },
-
       // Lookup sale items
       {
         $lookup: {
@@ -405,18 +389,13 @@ const getSalesList = async (req, res) => {
       {
         $group: {
           _id: "$_id",
-          shiftId: { $first: "$shiftId" },
-          workerId: { $first: "$workerId" },
           invoiceNumber: { $first: "$invoiceNumber" },
-          totalLitres: { $first: "$totalLitres" },
           totalQty: { $first: "$totalQty" },
           totalAmount: { $first: "$totalAmount" },
           paymentMethod: { $first: "$paymentMethod" },
           userId: { $first: "$userId" },
           createdAt: { $first: "$createdAt" },
           updatedAt: { $first: "$updatedAt" },
-          shift: { $first: "$shift" },
-          worker: { $first: "$worker" },
           saleItems: {
             $push: {
               _id: "$saleItems._id",
@@ -468,4 +447,4 @@ const getSalesList = async (req, res) => {
 };
 
 
-module.exports = { createShiftWiseSales, createSalesForAccessory,getSalesList }
+module.exports = { createShiftWiseSales, createSalesForAccessory, getSalesList }

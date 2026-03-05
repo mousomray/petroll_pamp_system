@@ -143,6 +143,13 @@ function Page() {
     </div>
   );
 
+  const totalQtyTemplate = (rowData: any) => {
+    const qty = typeof rowData.totalQty === 'number'
+      ? rowData.totalQty
+      : (rowData.saleItems || []).reduce((s: number, it: any) => s + (Number(it.qty) || 0), 0);
+    return <div className="text-sm font-medium">{qty}</div>;
+  };
+
   const productsTemplate = (rowData: any) => {
     if (!rowData?.saleItems || rowData?.saleItems.length === 0) return <span className="text-gray-400">N/A</span>;
     return (
@@ -289,12 +296,11 @@ function Page() {
           emptyMessage={EmptyState}
         >
           <Column header="Invoice" body={invoiceTemplate} />
-          <Column header="Worker" body={workerTemplate} />
-          <Column header="Date" body={(row: any) => formatDate(row.createdAt)} />
           <Column header="Products" body={productsTemplate} style={{ minWidth: "260px" }} />
-          <Column header="Items" body={itemsTemplate} />
+          <Column header="Qty" body={totalQtyTemplate} style={{ minWidth: "80px" }} />
           <Column header="Amount" body={amountTemplate} />
           <Column header="Payment" body={paymentMethodTemplate} />
+          <Column header="Created" body={(row: any) => formatDate(row.createdAt)} />
           <Column header="Actions" body={actionTemplate} />
         </DataTable>
 
