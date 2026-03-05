@@ -1,76 +1,63 @@
 const mongoose = require("mongoose");
+const { Schema, model } = mongoose;
 
-const saleSchema = new mongoose.Schema({
-
-  productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Product",
-    required: true
-  },
-
+const salesSchema = new Schema({
   shiftId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: "Shift",
-    required: true
+    required: true,
+    index: true
   },
 
-  quantity: {
+  workerId: {
+    type: Schema.Types.ObjectId,
+    ref: "Worker",
+    required: true,
+    index: true
+  },
+
+  invoiceNumber: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true
+  },
+
+ 
+  cashCollected: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
+  onlineCollected: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
+  totalLitres: {
     type: Number,
     required: true,
     min: 0
   },
 
-  unitPrice: {
-    type: Number,
-    required: true
-  },
-
-  costPrice: {
-    type: Number,
-    required: true
-  },
-
-  grossAmount: {
-    type: Number,
-    default: 0
-  },
-
-  cgstAmount: {
-    type: Number,
-    default: 0
-  },
-
-  sgstAmount: {
-    type: Number,
-    default: 0
-  },
-
   totalAmount: {
     type: Number,
-    default: 0
-  },
-
-  profitAmount: {
-    type: Number,
-    default: 0
-  },
-
-  paymentMethod: {
-    type: String,
-    enum: ["CASH", "ONLINE"],
-    required: true
-  },
-
-  saleType: {
-    type: String,
-    enum: ["FUEL", "ACCESSORY"],
-    required: true
+    required: true,
+    min: 0
   },
 
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: "User",
-    required: true
+    required: true,
+    index: true
   }
-
 }, { timestamps: true });
+
+salesSchema.index({ shiftId: 1, workerId: 1, createdAt: -1 });
+
+const SalesModel = model("Sales", salesSchema);
+
+module.exports = SalesModel;
