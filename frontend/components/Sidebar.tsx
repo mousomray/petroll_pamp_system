@@ -112,11 +112,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role, user }) => {
               href: "/dashboard/shifts",
               label: "Shifts",
               icon: "pi-clock",
-            },
-            {
-              href: "/dashboard/meter-readings",
-              label: "Meter Readings",
-              icon: "pi-sliders-h",
             }
           ],
         },
@@ -174,6 +169,27 @@ const Sidebar: React.FC<SidebarProps> = ({ role, user }) => {
         },
       ],
     },
+    {
+      title: "Accounting",
+      items: [
+        {
+          label: "Journal Entries",
+          icon: "pi-book",
+          children: [
+            {
+              href: "/dashboard/expenses",
+              label: "Expenses",
+              icon: "pi-money-bill",
+            },
+            {
+              href: "/dashboard/income",
+              label: "Income",
+              icon: "pi-money-bill",
+            },
+          ],
+        },
+      ],
+    }
   ];
 
   // ---------------- MANAGER ----------------
