@@ -29,18 +29,6 @@ const shiftSchema = new Schema({
   },
 
 
-  cashCollected: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-
-  onlineCollected: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-
   status: {
     type: String,
     enum: ["OPEN", "CLOSED"],
