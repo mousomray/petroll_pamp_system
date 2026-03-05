@@ -6,6 +6,10 @@ const { closeShiftMultipleReadingsSchema } = require("../schema/shiftSchema")
 const MeterReadingModel = require("../model/meterReading.model")
 const { z } = require("zod");
 const { createShiftSchema } = require("../schema/shiftSchema");
+const TankModel = require("../model/tank.model")
+const SalesModel = require("../model/sales.model")
+const ProductModel = require("../model/product.model")
+const SaleItemModel = require("../model/saleItem.model")
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
 
@@ -64,7 +68,7 @@ const createShift = async (req, res) => {
 
       nozzleIds = nozzles.map(n => n.nozzleId);
 
-      // 🔎 Validate nozzles
+     
       const validNozzles = await NozzleModel.find({
         _id: { $in: nozzleIds },
         userId
@@ -77,7 +81,7 @@ const createShift = async (req, res) => {
         });
       }
 
-      // 🔎 Check nozzle already used
+      
       const nozzleInUse = await ShiftModel.findOne({
         nozzleIds: { $in: nozzleIds },
         status: "OPEN"
@@ -92,7 +96,7 @@ const createShift = async (req, res) => {
 
     }
 
-    // 🚀 Create Shift
+    
     const shift = await ShiftModel.create({
       workerId,
       nozzleIds,
@@ -101,7 +105,7 @@ const createShift = async (req, res) => {
       shiftStart: new Date()
     });
 
-    // 🚀 Insert meter readings only for nozzle boy
+   
     if (worker.workerType === "NOZZLE_BOY") {
 
       const meterReadings = nozzles.map(n => ({
@@ -196,7 +200,7 @@ const getAllShifts = async (req, res) => {
 
       { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
 
-      // 6️⃣ Meter Reading
+      
       {
         $lookup: {
           from: "meterreadings",
@@ -222,7 +226,7 @@ const getAllShifts = async (req, res) => {
 
       { $unwind: { path: "$meterReading", preserveNullAndEmptyArrays: true } },
 
-      // 7️⃣ Search
+      
       ...(search
         ? [{
           $match: {
@@ -236,7 +240,7 @@ const getAllShifts = async (req, res) => {
         }]
         : []),
 
-      // 8️⃣ Group
+     
       {
         $group: {
           _id: "$_id",
@@ -274,10 +278,10 @@ const getAllShifts = async (req, res) => {
                 openingReading: "$meterReading.openingReading",
                 closingReading: "$meterReading.closingReading",
 
-                // ✅ Meter Reading table থেকে
+              
                 totalLitres: "$meterReading.totalLitres",
 
-                // ✅ Auto calculation
+              
                 totalSale: {
                   $cond: [
                     {
@@ -302,10 +306,10 @@ const getAllShifts = async (req, res) => {
         }
       },
 
-      // 9️⃣ Sort
+      
       { $sort: { createdAt: -1 } },
 
-      // 🔟 Pagination
+   
       {
         $facet: {
           data: [
@@ -448,36 +452,53 @@ const getShiftById = async (req, res) => {
 
 const closeShift = async (req, res) => {
   try {
+
     const validatedData = closeShiftMultipleReadingsSchema.parse(req.body);
     const { shiftId, readings } = validatedData;
     const userId = req.user?._id;
 
-    const shift = await ShiftModel.findOne({ _id: shiftId, status: "OPEN" });
-    if (!shift) {
-      return res.status(404).json({ success: false, message: "Open shift not found" });
-    }
+    const shift = await ShiftModel.findOne({
+      _id: shiftId,
+      status: "OPEN",
+      userId
+    });
 
+    if (!shift) {
+      return res.status(404).json({
+        success: false,
+        message: "Open shift not found"
+      });
+    }
 
     const worker = await WorkerModel.findById(shift.workerId);
+
     if (!worker) {
-      return res.status(404).json({ success: false, message: "Worker not found for this shift" });
+      return res.status(404).json({
+        success: false,
+        message: "Worker not found"
+      });
     }
 
+    const tankUsage = {};
+    const nozzleUsage = {}; // nozzle wise litres
 
-    if (worker.workerType === "NOZZLE_BOY" && readings && readings.length > 0) {
-      const meterReadingPromises = readings.map(async (r) => {
+    if (worker.workerType === "NOZZLE_BOY" && readings?.length) {
+
+      for (const r of readings) {
+
         let meterReading = r.readingId
           ? await MeterReadingModel.findById(r.readingId)
           : null;
 
+        let openingReading = 0;
+
         if (!meterReading) {
 
           const lastReading = await MeterReadingModel.findOne({
-            shiftId: shift._id,
             nozzleId: r.nozzleId
           }).sort({ createdAt: -1 });
 
-          const openingReading = lastReading?.closingReading || 0;
+          openingReading = lastReading?.closingReading || 0;
 
           meterReading = new MeterReadingModel({
             shiftId: shift._id,
@@ -487,36 +508,158 @@ const closeShift = async (req, res) => {
             totalLitres: r.closingReading - openingReading,
             userId
           });
+
         } else {
+
           meterReading.closingReading = r.closingReading;
-          meterReading.totalLitres = r.closingReading - meterReading.openingReading;
+          meterReading.totalLitres =
+            meterReading.closingReading - meterReading.openingReading;
         }
 
-        return meterReading.save();
-      });
+        await meterReading.save();
 
-      await Promise.all(meterReadingPromises);
+        const nozzle = await NozzleModel.findById(r.nozzleId).select("tank");
+
+        if (!nozzle) continue;
+
+        const tankId = nozzle.tank.toString();
+
+        if (!tankUsage[tankId]) tankUsage[tankId] = 0;
+
+        tankUsage[tankId] += meterReading.totalLitres;
+
+        nozzleUsage[r.nozzleId] = meterReading.totalLitres;
+      }
     }
 
+    const tankIds = Object.keys(tankUsage);
+
+    const tanks = await TankModel.find({
+      _id: { $in: tankIds }
+    });
+
+    // ✅ Prevent negative tank
+    for (const tank of tanks) {
+
+      const used = tankUsage[tank._id.toString()];
+
+      if (tank.currentQuantity - used < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Not enough fuel in tank ${tank.tankName}`
+        });
+      }
+    }
+
+   
+    const products = await ProductModel.find({
+      tankIds: { $in: tankIds },
+      type: "FUEL",
+      userId
+    });
+
+    const invoiceNumber = `INV-${Date.now()}`;
+
+    const sales = await SalesModel.create({
+      shiftId,
+      workerId: shift.workerId,
+      saleType: "FUEL",
+      invoiceNumber,
+      totalQty: 0,
+      totalAmount: 0,
+      userId
+    });
+
+    let totalQty = 0;
+    let totalAmount = 0;
+
+    const saleItems = [];
+
+    for (const nozzleId in nozzleUsage) {
+
+      const litres = nozzleUsage[nozzleId];
+
+      const nozzle = await NozzleModel.findById(nozzleId).select("tank");
+
+      if (!nozzle) continue;
+
+      const product = products.find(p =>
+        p.tankIds.some(t => t.toString() === nozzle.tank.toString())
+      );
+
+      if (!product) continue;
+
+      const price = product.sellingPrice;
+      const amount = litres * price;
+
+      totalQty += litres;
+      totalAmount += amount;
+
+      saleItems.push({
+        saleId: sales._id,
+        productId: product._id,
+        nozzleId,
+        qty: litres,
+        price,
+        amount,
+        userId
+      });
+    }
+
+    if (saleItems.length) {
+      await SaleItemModel.insertMany(saleItems);
+    }
+
+    sales.totalQty = totalQty;
+    sales.totalAmount = totalAmount;
+
+    await sales.save();
+
+   
+    for (const tank of tanks) {
+
+      const used = tankUsage[tank._id.toString()];
+
+      await TankModel.updateOne(
+        { _id: tank._id },
+        {
+          $inc: { currentQuantity: -used }
+        }
+      );
+    }
 
     shift.status = "CLOSED";
     shift.shiftEnd = new Date();
+
     await shift.save();
 
     return res.status(200).json({
       success: true,
       message: "Shift closed successfully",
-      data: shift
+      data: {
+        shift,
+        sales,
+        saleItems
+      }
     });
 
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ success: false, errors: error.errors });
-    }
-    console.error("Close Shift Error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
 
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        errors: error.errors
+      });
+    }
+
+    console.error("Close Shift Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+
+  }
+}
 
 module.exports = { createShift, getAllShifts, getShiftById, closeShift };
