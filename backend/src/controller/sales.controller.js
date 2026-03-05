@@ -6,6 +6,8 @@ const ShiftModel = require("../model/shiftModel")
 const NozzleModel = require("../model/nozzel.model")
 const MeterReadingModel = require("../model/meterReading.model")
 const ProductModel = require("../model/product.model")
+const OpeningStockModel = require("../model/opningStock.model")
+const CurrentStock = require("../model/currentStock.model")
 const { createAccessorySaleSchema } = require("../schema/saleSchema")
 
 
@@ -181,55 +183,46 @@ const createShiftWiseSales = async (req, res) => {
 
 
 const createSalesForAccessory = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const userId = req.user?._id;
-
-    // Validate input
-    const parsedData = req.body;
-    const { items, paymentMethod } = parsedData;
+    const { items, paymentMethod } = req.body;
 
     if (!items || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No items provided"
-      });
+      throw new Error("No items provided");
     }
 
-    // Find user's OPEN shift
+    // ✅ Find OPEN shift
     const shift = await ShiftModel.findOne({
       userId,
       status: "OPEN"
-    });
+    }).session(session);
 
     if (!shift) {
-      return res.status(400).json({
-        success: false,
-        message: "No open shift found for this user"
-      });
+      throw new Error("No open shift found for this user");
     }
 
-    // Fetch products
+    // ✅ Fetch products
     const productIds = items.map(i => i.productId);
     const products = await ProductModel.find({
       _id: { $in: productIds },
       userId,
       type: "ACCESSORY",
       isActive: true
-    });
+    }).session(session);
 
     if (!products.length) {
-      return res.status(400).json({
-        success: false,
-        message: "Accessory products not found"
-      });
+      throw new Error("Accessory products not found");
     }
 
-    // Create sale
+    // ✅ Create sale
     const invoiceNumber = `INV-${Date.now()}`;
     let totalQty = 0;
     let totalAmount = 0;
 
-    const sales = await SalesModel.create({
+    const sales = await SalesModel.create([{
       shiftId: shift._id,
       workerId: shift.workerId,
       saleType: "ACCESSORY",
@@ -238,9 +231,10 @@ const createSalesForAccessory = async (req, res) => {
       totalAmount: 0,
       paymentMethod: paymentMethod || "CASH",
       userId
-    });
+    }], { session });
 
-    const saleItems = [];
+    const saleDoc = sales[0];
+    const saleItemsData = [];
 
     for (const item of items) {
       const product = products.find(p => p._id.toString() === item.productId);
@@ -253,39 +247,77 @@ const createSalesForAccessory = async (req, res) => {
       totalQty += qty;
       totalAmount += amount;
 
-      saleItems.push({
-        saleId: sales._id,
+      saleItemsData.push({
+        saleId: saleDoc._id,
         productId: product._id,
         qty,
         price,
         amount,
         userId
       });
+
+      // ✅ Update Current Stock
+      await CurrentStock.updateOne(
+        { userId, productId: product._id },
+        { $inc: { quantity: -qty } },
+        { upsert: true, session }
+      );
+
+      // ✅ Update Opening Stock
+      const currentYear = new Date().getFullYear();
+      const nextYear = currentYear + 1;
+      const financialYear = `${currentYear}-${nextYear}`;
+
+      let openingStock = await OpeningStockModel.findOne({
+        userId,
+        productId: product._id,
+        financialYear
+      }).session(session);
+
+      if (openingStock) {
+        openingStock.totalSale += qty;
+        openingStock.closingStock -= qty;
+        await openingStock.save({ session });
+      } else {
+        // Create if not exist
+        await OpeningStockModel.create([{
+          userId,
+          productId: product._id,
+          financialYear,
+          openingStock: 0,
+          totalPurchase: 0,
+          totalSale: qty,
+          closingStock: -qty
+        }], { session });
+      }
     }
 
-    if (saleItems.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No valid accessory items"
-      });
+    if (saleItemsData.length === 0) {
+      throw new Error("No valid accessory items");
     }
 
-    await SaleItemModel.insertMany(saleItems);
+    await SaleItemModel.insertMany(saleItemsData, { session });
 
-    sales.totalQty = totalQty;
-    sales.totalAmount = totalAmount;
-    await sales.save();
+    saleDoc.totalQty = totalQty;
+    saleDoc.totalAmount = totalAmount;
+    await saleDoc.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     return res.status(200).json({
       success: true,
       message: "Accessory sale created successfully",
       data: {
-        sales,
-        saleItems
+        sales: saleDoc,
+        saleItems: saleItemsData
       }
     });
 
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
     console.error("Accessory Sales Error:", error);
     return res.status(500).json({
       success: false,
@@ -294,4 +326,146 @@ const createSalesForAccessory = async (req, res) => {
   }
 };
 
-module.exports = { createShiftWiseSales, createSalesForAccessory }
+
+const getSalesList = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    let { page = 1, limit, search } = req.query;
+
+    page = parseInt(page);
+    limit = parseInt(limit) || 10;
+
+    const matchStage = { userId: new mongoose.Types.ObjectId(userId) };
+
+    if (search) {
+      matchStage.$or = [
+        { invoiceNumber: { $regex: search, $options: "i" } },
+        { paymentMethod: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    const pipeline = [
+      { $match: matchStage },
+
+      // Lookup shift info
+      {
+        $lookup: {
+          from: "shifts",
+          localField: "shiftId",
+          foreignField: "_id",
+          as: "shift"
+        }
+      },
+      { $unwind: { path: "$shift", preserveNullAndEmptyArrays: true } },
+
+      // Lookup worker info
+      {
+        $lookup: {
+          from: "workers",
+          localField: "workerId",
+          foreignField: "_id",
+          as: "worker"
+        }
+      },
+      { $unwind: { path: "$worker", preserveNullAndEmptyArrays: true } },
+
+      // Lookup sale items
+      {
+        $lookup: {
+          from: "saleitems",
+          localField: "_id",
+          foreignField: "saleId",
+          as: "saleItems"
+        }
+      },
+
+      // Lookup product info for each sale item
+      {
+        $unwind: {
+          path: "$saleItems",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "products",
+          localField: "saleItems.productId",
+          foreignField: "_id",
+          as: "saleItems.product"
+        }
+      },
+      {
+        $unwind: {
+          path: "$saleItems.product",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // Group back sale items under each sale
+      {
+        $group: {
+          _id: "$_id",
+          shiftId: { $first: "$shiftId" },
+          workerId: { $first: "$workerId" },
+          invoiceNumber: { $first: "$invoiceNumber" },
+          totalLitres: { $first: "$totalLitres" },
+          totalQty: { $first: "$totalQty" },
+          totalAmount: { $first: "$totalAmount" },
+          paymentMethod: { $first: "$paymentMethod" },
+          userId: { $first: "$userId" },
+          createdAt: { $first: "$createdAt" },
+          updatedAt: { $first: "$updatedAt" },
+          shift: { $first: "$shift" },
+          worker: { $first: "$worker" },
+          saleItems: {
+            $push: {
+              _id: "$saleItems._id",
+              productId: "$saleItems.productId",
+              qty: "$saleItems.qty",
+              price: "$saleItems.price",
+              amount: "$saleItems.amount",
+              product: "$saleItems.product"
+            }
+          }
+        }
+      },
+
+      { $sort: { createdAt: -1 } },
+
+      // Pagination
+      {
+        $facet: {
+          data: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit }
+          ],
+          totalCount: [{ $count: "count" }]
+        }
+      }
+    ];
+
+    const result = await SalesModel.aggregate(pipeline);
+
+    const sales = result[0].data;
+    const total = result[0].totalCount[0]?.count || 0;
+
+    return res.status(200).json({
+      success: true,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      data: sales
+    });
+
+  } catch (error) {
+    console.error("Get Sales List Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
+module.exports = { createShiftWiseSales, createSalesForAccessory,getSalesList }
