@@ -36,18 +36,21 @@ function NozzleForm({ nozzleId, onClose, onSuccess }: NozzleFormProps) {
         setValue,
         formState: { errors },
     } = useForm<CreateNozzleFormData | UpdateNozzleFormData>({
-        resolver: zodResolver(isEditMode ? updateNozzleSchema : createNozzleSchema),
+        resolver: zodResolver(isEditMode ? updateNozzleSchema : createNozzleSchema) as any,
         defaultValues: isEditMode
             ? {
                 nozzleNumber: "",
                 tank: "",
                 machineName: "",
-                isActive: true,
+                initialReading: 0,
+                status: "ACTIVE",
             }
             : {
                 nozzleNumber: "",
                 tank: "",
                 machineName: "",
+                initialReading: 0,
+                status: "ACTIVE",
             },
     });
 
@@ -79,9 +82,10 @@ function NozzleForm({ nozzleId, onClose, onSuccess }: NozzleFormProps) {
             const tankId = typeof nozzle.tank === 'object' ? nozzle.tank._id : nozzle.tank;
             setValue("tank", tankId);
             setValue("machineName", nozzle.machineName || "");
-            if (isEditMode) {
-                setValue("isActive", nozzle.isActive);
-            }
+            // set initialReading if present on the nozzle
+            setValue("initialReading", nozzle.initialReading ?? 0);
+            // set status if present on the nozzle
+            setValue("status", nozzle.status ?? "ACTIVE");
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to fetch nozzle data");
             onClose();
@@ -137,6 +141,12 @@ function NozzleForm({ nozzleId, onClose, onSuccess }: NozzleFormProps) {
         label: tank.tankName,
         value: tank._id,
     }));
+
+    const statusOptions = [
+        { label: "Active", value: "ACTIVE" },
+        { label: "Inactive", value: "INACTIVE" },
+        { label: "Maintenance", value: "MAINTENANCE" },
+    ];
 
     return (
         <div className="px-4 pt-2 pb-4 min-h-[60vh]">
@@ -199,30 +209,47 @@ function NozzleForm({ nozzleId, onClose, onSuccess }: NozzleFormProps) {
                     )}
                 </div>
 
-                {/* IsActive (Only for Edit) */}
-                {isEditMode && (
-                    <div className="flex flex-col gap-2">
-                        <label htmlFor="isActive" className="font-medium text-sm">
-                            Status
-                        </label>
-                        <Controller
-                            name="isActive"
-                            control={control}
-                            render={({ field }) => (
-                                <div className="flex items-center gap-2">
-                                    <Checkbox
-                                        inputId="isActive"
-                                        checked={field.value ?? false}
-                                        onChange={(e) => field.onChange(e.checked)}
-                                    />
-                                    <label htmlFor="isActive" className="cursor-pointer">
-                                        Active
-                                    </label>
-                                </div>
-                            )}
-                        />
-                    </div>
-                )}
+                {/* Initial Reading
+                <div className="flex flex-col gap-2">
+                    <label htmlFor="initialReading" className="font-medium text-sm">
+                        Initial Reading <span className="text-red-500">*</span>
+                    </label>
+                    <InputText
+                        id="initialReading"
+                        type="number"
+                        step="0.01"
+                        {...register("initialReading", { valueAsNumber: true })}
+                        placeholder="Enter initial reading"
+                        className={`w-full ${errors.initialReading ? "p-invalid" : ""}`}
+                    />
+                    {errors.initialReading && (
+                        <small className="text-red-500">{errors.initialReading.message}</small>
+                    )}
+                </div> */}
+
+                {/* Status Dropdown */}
+                <div className="flex flex-col gap-2">
+                    <label htmlFor="status" className="font-medium text-sm">
+                        Status
+                    </label>
+                    <Controller
+                        name="status"
+                        control={control}
+                        render={({ field }) => (
+                            <Dropdown
+                                id="status"
+                                value={field.value}
+                                onChange={(e) => field.onChange(e.value)}
+                                options={statusOptions}
+                                placeholder="Select status"
+                                className={`w-full ${(errors as any).status ? "p-invalid" : ""}`}
+                            />
+                        )}
+                    />
+                    {(errors as any).status && (
+                        <small className="text-red-500">{(errors as any).status.message}</small>
+                    )}
+                </div>
             </div>
                 {/* Form Actions */}
                 <div className="flex justify-end gap-3 pt-3">

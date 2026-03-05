@@ -138,15 +138,21 @@ function Page() {
 
   /* ================= COLUMN TEMPLATES ================= */
   const statusTemplate = (rowData: any) => (
-    <span
-      className={`px-2 py-1 rounded-full text-xs font-medium ${
-        rowData.isActive
-          ? "bg-green-100 text-green-800"
-          : "bg-red-100 text-red-800"
-      }`}
-    >
-      {rowData.isActive ? "Active" : "Inactive"}
-    </span>
+    // Prefer explicit `status` field; fall back to `isActive` for older records
+    (() => {
+      const status = rowData.status ?? (rowData.isActive ? "ACTIVE" : "INACTIVE");
+      const map: Record<string, { label: string; cls: string }> = {
+        ACTIVE: { label: "Active", cls: "bg-green-100 text-green-800" },
+        INACTIVE: { label: "Inactive", cls: "bg-red-100 text-red-800" },
+        MAINTENANCE: { label: "Maintenance", cls: "bg-amber-100 text-amber-800" },
+      };
+      const info = map[status] || map.INACTIVE;
+      return (
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${info.cls}`}>
+          {info.label}
+        </span>
+      );
+    })()
   );
 
   const actionTemplate = (rowData: any) => (
@@ -176,8 +182,13 @@ function Page() {
       },
     },
     {
-      label: selectedNozzle?.isActive ? "Deactivate" : "Activate",
-      icon: selectedNozzle?.isActive ? "pi pi-times-circle" : "pi pi-check-circle",
+      label: selectedNozzle?.status === "ACTIVE" || (selectedNozzle?.isActive === true)
+        ? "Deactivate"
+        : "Activate",
+      icon:
+        selectedNozzle?.status === "ACTIVE" || (selectedNozzle?.isActive === true)
+          ? "pi pi-times-circle"
+          : "pi pi-check-circle",
       command: () => {
         if (selectedNozzle) toggleNozzleStatus(selectedNozzle);
       },

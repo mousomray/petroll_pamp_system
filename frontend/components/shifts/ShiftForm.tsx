@@ -8,12 +8,15 @@ import axios from "axios";
 import axiosInstance from "@/service/axios.service";
 import { toast } from "react-toastify";
 import { Dropdown } from "primereact/dropdown";
+import { MultiSelect } from "primereact/multiselect";
 import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog";
 import WorkerForm from "@/components/worker/WorkerForm";
+import NozzleForm from "@/components/nozzle/NozzleForm";
 
 const shiftSchema = z.object({
   workerId: z.string().min(1, "Worker is required"),
+  nozzleIds: z.array(z.string()).min(1, "At least one nozzle is required"),
 });
 
 type ShiftFormData = z.infer<typeof shiftSchema>;
@@ -27,7 +30,9 @@ function ShiftForm({ onClose, onSuccess }: ShiftFormProps) {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [workers, setWorkers] = useState<any[]>([]);
+  const [nozzles, setNozzles] = useState<any[]>([]);
   const [showWorkerDialog, setShowWorkerDialog] = useState(false);
+  const [showNozzleDialog, setShowNozzleDialog] = useState(false);
 
   const {
     control,
@@ -38,16 +43,27 @@ function ShiftForm({ onClose, onSuccess }: ShiftFormProps) {
     resolver: zodResolver(shiftSchema),
     defaultValues: {
       workerId: "",
+      nozzleIds: [],
     },
   });
 
   useEffect(() => {
-    fetchWorkers();
+    fetchDropdownData();
   }, []);
+
+  const fetchDropdownData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([fetchWorkers(), fetchNozzles()]);
+    } catch (error) {
+      console.error("Error fetching dropdown data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchWorkers = async () => {
     try {
-      setLoading(true);
       const res = await axiosInstance.get("/api/worker/dropdown-workers");
       setWorkers(res.data.data || []);
     } catch (err: any) {
@@ -56,8 +72,19 @@ function ShiftForm({ onClose, onSuccess }: ShiftFormProps) {
       } else {
         toast.error("Failed to load workers");
       }
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchNozzles = async () => {
+    try {
+      const res = await axiosInstance.get("/api/nozzle/dropdown-nozzles");
+      setNozzles(res.data.data || []);
+    } catch (err: any) {
+      if (axios.isAxiosError(err)) {
+        toast.error(err.response?.data?.message || "Failed to load nozzles");
+      } else {
+        toast.error("Failed to load nozzles");
+      }
     }
   };
 
@@ -82,11 +109,34 @@ function ShiftForm({ onClose, onSuccess }: ShiftFormProps) {
     }
   };
 
+  const handleNozzleCreated = async () => {
+    // Refresh nozzle list and auto-select new nozzle
+    try {
+      const res = await axiosInstance.get("/api/nozzle/dropdown-nozzles");
+      const updatedNozzles = res.data.data || [];
+      setNozzles(updatedNozzles);
+      
+      // Auto-add the newly created nozzle to the selected nozzles
+      if (updatedNozzles.length > 0) {
+        const newNozzle = updatedNozzles[updatedNozzles.length - 1];
+        const currentNozzleIds = control._formValues.nozzleIds || [];
+        setValue("nozzleIds", [...currentNozzleIds, newNozzle._id]);
+        toast.success(`Nozzle "${newNozzle.nozzleNumber}" added and selected`);
+      }
+      
+      setShowNozzleDialog(false);
+    } catch (error: any) {
+      console.error("Failed to refresh nozzles:", error);
+      setShowNozzleDialog(false);
+    }
+  };
+
   const onSubmit = async (form: ShiftFormData) => {
     setIsSubmitting(true);
     try {
       const payload = {
         workerId: form.workerId,
+        nozzleIds: form.nozzleIds,
       };
       const res = await axiosInstance.post("/api/shift/create-shift", payload);
       toast.success(res.data?.message || "Shift created successfully");
@@ -113,6 +163,11 @@ function ShiftForm({ onClose, onSuccess }: ShiftFormProps) {
   const workerOptions = workers.map((worker) => ({
     label: `${worker.name} - ${worker.workerType}`,
     value: worker._id,
+  }));
+
+  const nozzleOptions = nozzles.map((nozzle) => ({
+    label: nozzle.nozzleNumber || 'Unnamed Nozzle',
+    value: nozzle._id,
   }));
 
   return (
@@ -151,6 +206,44 @@ function ShiftForm({ onClose, onSuccess }: ShiftFormProps) {
             <small className="text-red-500 flex items-center gap-1">
               <i className="pi pi-exclamation-circle text-xs"></i>
               {errors.workerId.message}
+            </small>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">
+            Select Nozzles <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            <Controller
+              name="nozzleIds"
+              control={control}
+              render={({ field }) => (
+                <MultiSelect
+                  value={field.value}
+                  options={nozzleOptions}
+                  onChange={(e) => field.onChange(e.value)}
+                  placeholder="Choose nozzles for this shift"
+                  className="flex-1"
+                  display="chip"
+                  filter
+                  showClear
+                />
+              )}
+            />
+            <Button
+              type="button"
+              icon="pi pi-plus"
+              onClick={() => setShowNozzleDialog(true)}
+              className="bg-green-500 text-white border-0 hover:bg-green-600"
+              tooltip="Add New Nozzle"
+              tooltipOptions={{ position: "top" }}
+            />
+          </div>
+          {errors.nozzleIds && (
+            <small className="text-red-500 flex items-center gap-1">
+              <i className="pi pi-exclamation-circle text-xs"></i>
+              {errors.nozzleIds.message}
             </small>
           )}
         </div>
@@ -212,6 +305,32 @@ function ShiftForm({ onClose, onSuccess }: ShiftFormProps) {
           workerId={null}
           onClose={() => setShowWorkerDialog(false)}
           onSuccess={handleWorkerCreated}
+        />
+      </Dialog>
+
+      {/* Nozzle Creation Dialog */}
+      <Dialog
+        header={
+          <div className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-teal-600 mb-2 p-2 rounded-t-lg">
+            <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+              <i className="pi pi-filter text-white text-xl"></i>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Add New Nozzle</h2>
+              <p className="text-sm text-white/90">Create a new nozzle</p>
+            </div>
+          </div>
+        }
+        visible={showNozzleDialog}
+        style={{ width: "60vw" }}
+        breakpoints={{ "960px": "75vw", "641px": "95vw" }}
+        onHide={() => setShowNozzleDialog(false)}
+        dismissableMask
+      >
+        <NozzleForm
+          nozzleId={null}
+          onClose={() => setShowNozzleDialog(false)}
+          onSuccess={handleNozzleCreated}
         />
       </Dialog>
     </div>

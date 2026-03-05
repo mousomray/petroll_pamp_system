@@ -320,15 +320,17 @@ export const createNozzleSchema = zod.object({
     .max(100, "Machine name is too long")
     .optional(),
 
-  isActive: zod.boolean().optional(),
+  // Initial meter reading (required on create). Accepts string or number and coerces to number.
+  initialReading: zod.coerce
+    .number()
+    .nonnegative("Initial reading must be greater than or equal to 0"),
+
+  // Status of the nozzle: ACTIVE | INACTIVE | MAINTENANCE
+  status: zod.enum(["ACTIVE", "INACTIVE", "MAINTENANCE"]).default("ACTIVE"),
 });
 
-export const updateNozzleSchema = zod.object({
-  nozzleNumber: zod.string().min(2, "Nozzle number must be at least 2 characters").optional(),
-  tank: objectIdSchema.optional(),
-  machineName: zod.string().optional(),
-  isActive: zod.boolean().optional(),
-});
+// For updates, allow any field to be optional. Reuse the create schema rules but make all fields optional.
+export const updateNozzleSchema = createNozzleSchema.partial();
 
 // ===============================
 // PURCHASE SCHEMA (frontend copy of backend purchase.schema.js)

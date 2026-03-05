@@ -11,8 +11,10 @@ import { InputText } from "primereact/inputtext";
 import { IconField } from "primereact/iconfield";
 import { InputIcon } from "primereact/inputicon";
 import { Button } from "primereact/button";
+import { Menu } from "primereact/menu";
 import { formatDate } from "@/helper/DateTime";
 import ShiftForm from "@/components/shifts/ShiftForm";
+import MeterReadingForm from "@/components/meter-reading/MeterReadingForm";
 
 const EmptyState = () => (
   <div className="flex flex-col items-center justify-center h-full text-center">
@@ -28,6 +30,9 @@ function Page() {
   const [loading, setLoading] = useState(false);
   const [shiftData, setShiftData] = useState<any[]>([]);
   const [visible, setVisible] = useState(false);
+  const [meterReadingVisible, setMeterReadingVisible] = useState(false);
+  const [selectedShift, setSelectedShift] = useState<any | null>(null);
+  const menu = React.useRef<Menu | null>(null);
 
   const [pagination, setPagination] = useState({
     page: 1,
@@ -163,6 +168,39 @@ function Page() {
     setVisible(true);
   };
 
+  const handleOpeningReading = (rowData: any) => {
+    setSelectedShift(rowData);
+    setMeterReadingVisible(true);
+  };
+
+  const showRowMenu = (event: any, rowData: any) => {
+    event.stopPropagation();
+    setSelectedShift(rowData);
+    menu.current?.show(event);
+  };
+
+  const actionTemplate = (rowData: any) => (
+    <div onClick={(e) => e.stopPropagation()} className="flex">
+      <Button
+        icon="pi pi-ellipsis-v"
+        rounded
+        text
+        aria-label="More actions"
+        onClick={(e) => showRowMenu(e, rowData)}
+      />
+    </div>
+  );
+
+  const menuModel = [
+    {
+      label: "Opening Reading",
+      icon: "pi pi-book",
+      command: () => {
+        if (selectedShift) handleOpeningReading(selectedShift);
+      },
+    },
+  ];
+
   const header = (
     <div className="flex justify-between items-center bg-primary p-3 rounded-lg">
       <div>
@@ -233,7 +271,11 @@ function Page() {
           <Column header="Type" body={shortageTypeTemplate} style={{ minWidth: "100px" }} />
           <Column header="Status" body={statusTemplate} style={{ minWidth: "100px" }} />
           <Column header="Created" body={dateTemplate("createdAt")} style={{ minWidth: "150px" }} />
+          <Column header="Actions" body={actionTemplate} style={{ minWidth: "80px" }} />
         </DataTable>
+
+        {/* popup menu */}
+        <Menu model={menuModel} popup ref={menu} />
 
         <Dialog
           header={AddShiftHeader}
@@ -247,6 +289,40 @@ function Page() {
             onSuccess={() => {
               shiftDataGet();
               setVisible(false);
+            }}
+          />
+        </Dialog>
+
+        <Dialog
+          header={
+            <div className="flex items-center gap-3 bg-gradient-to-r from-purple-500 to-pink-600 mb-2 p-2 rounded-t-lg">
+              <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+                <i className="pi pi-book text-white text-xl"></i>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">Opening Meter Reading</h2>
+                <p className="text-sm text-white/90">Record initial meter readings for shift</p>
+              </div>
+            </div>
+          }
+          visible={meterReadingVisible}
+          style={{ width: "60vw" }}
+          breakpoints={{ "960px": "75vw", "641px": "95vw" }}
+          onHide={() => {
+            setMeterReadingVisible(false);
+            setSelectedShift(null);
+          }}
+        >
+          <MeterReadingForm
+            shiftId={selectedShift?._id || null}
+            onClose={() => {
+              setMeterReadingVisible(false);
+              setSelectedShift(null);
+            }}
+            onSuccess={() => {
+              shiftDataGet();
+              setMeterReadingVisible(false);
+              setSelectedShift(null);
             }}
           />
         </Dialog>
