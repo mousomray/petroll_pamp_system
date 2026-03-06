@@ -139,7 +139,7 @@ function Page() {
     );
   };
 
-  
+
   const nozzlesTemplate = (rowData: any) => {
     if (!rowData.nozzles || rowData.nozzles.length === 0) return <span className="text-gray-400">N/A</span>;
     return (
@@ -179,6 +179,11 @@ function Page() {
     );
   };
 
+
+
+
+
+
   const totalSalesTemplate = (rowData: any) => {
     if (!rowData.nozzles || rowData.nozzles.length === 0) return <span className="text-gray-400">N/A</span>;
     return (
@@ -198,6 +203,22 @@ function Page() {
       <div className="text-xs text-gray-500">{new Date(rowData[field]).toLocaleTimeString()}</div>
     </div>
   );
+
+  const shiftEndTemplate = (rowData: any) => {
+  return rowData.shiftEnd
+    ? dateTemplate(rowData.shiftEnd)
+    : <span className="text-gray-400">N/A</span>;
+};
+
+
+  const workTimeTemplate = (rowData: any) => {
+    if (rowData.shiftDuration === null) {
+      return <span className="text-gray-400">N/A</span>;
+    }
+    return (
+     <span>{rowData.shiftDuration.value}<span>{rowData.shiftDuration.unit}</span></span>
+    );
+  };
 
   const handleAddShift = () => {
     setVisible(true);
@@ -275,7 +296,7 @@ function Page() {
     </div>
   );
 
-  
+
 
   return (
     <div className="w-full flex justify-center items-center">
@@ -307,7 +328,8 @@ function Page() {
           <Column header="Opening" body={openingReadingsTemplate} style={{ minWidth: "120px" }} />
           <Column header="Closing" body={closingReadingsTemplate} style={{ minWidth: "120px" }} />
           <Column header="Total Litres" body={totalSalesTemplate} style={{ minWidth: "120px" }} />
-          <Column header="Created" body={dateTemplate("createdAt")} style={{ minWidth: "150px" }} />
+          <Column header="Shift End" body={shiftEndTemplate("shiftEnd")} style={{ minWidth: "150px" }} />
+          <Column header="Work hours" body={workTimeTemplate} />
           <Column header="Actions" body={actionTemplate} style={{ minWidth: "80px" }} />
         </DataTable>
 

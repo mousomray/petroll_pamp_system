@@ -146,14 +146,13 @@ const getAllShifts = async (req, res) => {
 
     const pipeline = [
 
-      // 1️⃣ Match User
       {
         $match: {
           userId: new mongoose.Types.ObjectId(userId)
         }
       },
 
-      // 2️⃣ Worker
+      // Worker Lookup
       {
         $lookup: {
           from: "workers",
@@ -165,7 +164,7 @@ const getAllShifts = async (req, res) => {
 
       { $unwind: { path: "$worker", preserveNullAndEmptyArrays: true } },
 
-      // 3️⃣ Nozzles
+      // Nozzle Lookup
       {
         $lookup: {
           from: "nozzles",
@@ -177,7 +176,7 @@ const getAllShifts = async (req, res) => {
 
       { $unwind: { path: "$nozzles", preserveNullAndEmptyArrays: true } },
 
-      // 4️⃣ Tank
+      // Tank Lookup
       {
         $lookup: {
           from: "tanks",
@@ -189,7 +188,7 @@ const getAllShifts = async (req, res) => {
 
       { $unwind: { path: "$tank", preserveNullAndEmptyArrays: true } },
 
-      // 5️⃣ Product
+      // Product Lookup
       {
         $lookup: {
           from: "products",
@@ -201,7 +200,7 @@ const getAllShifts = async (req, res) => {
 
       { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
 
-      
+      // Meter Reading Lookup
       {
         $lookup: {
           from: "meterreadings",
@@ -227,23 +226,24 @@ const getAllShifts = async (req, res) => {
 
       { $unwind: { path: "$meterReading", preserveNullAndEmptyArrays: true } },
 
-      
+      // Search Filter
       ...(search
         ? [{
-          $match: {
-            $or: [
-              { "worker.name": { $regex: search, $options: "i" } },
-              { "nozzles.nozzleNumber": { $regex: search, $options: "i" } },
-              { "product.name": { $regex: search, $options: "i" } },
-              { status: { $regex: search, $options: "i" } }
-            ]
-          }
-        }]
+            $match: {
+              $or: [
+                { "worker.name": { $regex: search, $options: "i" } },
+                { "nozzles.nozzleNumber": { $regex: search, $options: "i" } },
+                { "product.name": { $regex: search, $options: "i" } },
+                { status: { $regex: search, $options: "i" } }
+              ]
+            }
+          }]
         : []),
 
-     
+      // Group Data
       {
         $group: {
+
           _id: "$_id",
 
           shiftStart: { $first: "$shiftStart" },
@@ -253,11 +253,21 @@ const getAllShifts = async (req, res) => {
 
           worker: { $first: "$worker" },
 
+          // Calculate shift duration in seconds
+          shiftDurationSeconds: {
+            $first: {
+              $dateDiff: {
+                startDate: "$shiftStart",
+                endDate: { $ifNull: ["$shiftEnd", "$$NOW"] },
+                unit: "second"
+              }
+            }
+          },
+
           nozzles: {
             $push: {
 
               _id: "$nozzles._id",
-
               nozzleName: "$nozzles.nozzleNumber",
 
               tank: {
@@ -274,15 +284,14 @@ const getAllShifts = async (req, res) => {
               },
 
               meterReading: {
+
                 _id: "$meterReading._id",
 
                 openingReading: "$meterReading.openingReading",
                 closingReading: "$meterReading.closingReading",
 
-              
                 totalLitres: "$meterReading.totalLitres",
 
-              
                 totalSale: {
                   $cond: [
                     {
@@ -300,26 +309,101 @@ const getAllShifts = async (req, res) => {
                     0
                   ]
                 }
+
               }
 
             }
           }
+
         }
       },
 
-      
+      // Add Shift Duration Field
+      {
+        $addFields: {
+
+          shiftEnd: {
+            $cond: [
+              { $eq: ["$status", "CLOSED"] },
+              "$shiftEnd",
+              null
+            ]
+          },
+
+          shiftDuration: {
+            $cond: [
+
+              { $eq: ["$status", "CLOSED"] },
+
+              {
+                $switch: {
+
+                  branches: [
+
+                    {
+                      case: { $lt: ["$shiftDurationSeconds", 60] },
+                      then: {
+                        value: "$shiftDurationSeconds",
+                        unit: "seconds"
+                      }
+                    },
+
+                    {
+                      case: { $lt: ["$shiftDurationSeconds", 3600] },
+                      then: {
+                        value: {
+                          $floor: {
+                            $divide: ["$shiftDurationSeconds", 60]
+                          }
+                        },
+                        unit: "minutes"
+                      }
+                    }
+
+                  ],
+
+                  default: {
+                    value: {
+                      $floor: {
+                        $divide: ["$shiftDurationSeconds", 3600]
+                      }
+                    },
+                    unit: "hours"
+                  }
+
+                }
+              },
+
+              null
+
+            ]
+          }
+
+        }
+      },
+
+      // Remove helper field
+      {
+        $project: {
+          shiftDurationSeconds: 0
+        }
+      },
+
       { $sort: { createdAt: -1 } },
 
-   
+      // Pagination
       {
         $facet: {
+
           data: [
             { $skip: (page - 1) * limit },
             { $limit: limit }
           ],
+
           totalCount: [
             { $count: "count" }
           ]
+
         }
       }
 
