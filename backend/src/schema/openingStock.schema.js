@@ -42,6 +42,8 @@ const createOpeningStockSchema = z.object({
     .min(1, "At least one product is required")
 });
 
+
+
 module.exports = {
   createOpeningStockSchema,
   tankDistributionSchema

@@ -53,7 +53,10 @@ interface Product {
 
 function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isConfirmSubmitting, setIsConfirmSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [Temploading, setTempLoading] = useState(false);
+    const [tempStock, setTempStock] = useState<Product[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
     const [currentStock, setCurrentStock] = useState<any>(null);
@@ -88,6 +91,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
     useEffect(() => {
         fetchProducts();
         fetchTanks();
+        getTempOpeningStock()
     }, []);
 
     useEffect(() => {
@@ -148,6 +152,37 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         const tank = tanks.find(t => t._id === tankId);
         return tank?.tankName || `Tank ${tankId.slice(0, 6)}`;
     };
+
+
+
+    const getTempOpeningStock = async () => {
+
+        try {
+            setTempLoading(true);
+            const res = await axiosInstance.get("/api/opening-stock/get-all-temp-stock");
+            setTempStock(res.data.data);
+        } catch (error) {
+            console.error("Failed to fetch temp opening stock");
+        } finally {
+            setTempLoading(false);
+        }
+    }
+
+    const opningStock = async () => {
+        try {
+            setIsConfirmSubmitting(true);
+          const res = await axiosInstance.post("/api/opening-stock/create-opening-stock");
+          toast.success(res.data.message || "Opening stock created successfully!");
+          getTempOpeningStock();
+          onSuccess()
+        } catch (error) {
+              toast.error(`Failed to create opening stock`);
+        } finally {
+            setIsConfirmSubmitting(false);
+        }
+    }
+
+   
 
     const fetchStockData = async () => {
         try {
@@ -248,6 +283,25 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         );
     };
 
+
+  const mergedProducts = React.useMemo(() => {
+    const map = new Map();
+
+    // temp stock first
+    tempStock.forEach((product) => {
+        map.set(product._id, { ...product, isTempStock: true });
+    });
+
+    // selected products
+    selectedProducts.forEach((product) => {
+        if (!map.has(product._id)) {
+            map.set(product._id, { ...product, isTempStock: false });
+        }
+    });
+
+    return Array.from(map.values());
+}, [tempStock, selectedProducts]);
+
     const updateEditTankAllocation = (tankId: string, value: number | null) => {
         if (editProduct && editProduct.tankAllocations) {
             setEditProduct({
@@ -312,7 +366,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
 
                 // ✅ SINGLE API CALL
                 const res = await axiosInstance.post(
-                    "/api/opening-stock/create-opening-stock",
+                    "/api/opening-stock/create-temp-stock",
                     payload
                 );
 
@@ -442,11 +496,11 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                 </div>
 
                 {/* Selected Products Details Table */}
-                {selectedProducts.length > 0 && (
+                {mergedProducts.length > 0 && (
                     <div className="mt-4">
                         <h3 className="font-semibold text-sm mb-2 text-gray-700">Selected Products Details</h3>
                         <DataTable
-                            value={selectedProducts}
+                            value={mergedProducts}
                             className="border rounded-lg"
                             emptyMessage="No products selected"
                             size="small"
@@ -484,6 +538,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                                                             {allocation.tankName || `Tank ${idx + 1}`}:
                                                         </label>
                                                         <InputNumber
+                                                         disabled={rowData.isTempStock}
                                                             value={allocation.openingStock}
                                                             onValueChange={(e) => updateTankAllocation(rowData._id, allocation.tankId, e.value ?? null)}
                                                             min={0}
@@ -497,11 +552,12 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                                     }
 
                                     // For non-FUEL products, show single input
-                                    return (
+                                  return (
                                         <div className="flex items-center gap-2">
                                             <InputNumber
+                                                disabled={rowData.isTempStock}
                                                 value={rowData.openingStock}
-                                                onValueChange={(e) => updateOpeningStockForProduct(rowData._id, e.value ?? null)}
+                                                  onValueChange={(e) => updateOpeningStockForProduct(rowData._id, e.value ?? null)}
                                                 min={0}
                                                 className="w-full"
                                             />
@@ -565,9 +621,18 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                     />
                     <Button
                         type="submit"
-                        label="Create Opening Stock"
+                        label="save as Draft"
                         loading={isSubmitting}
                         disabled={isSubmitting || selectedProducts.length === 0}
+                        icon="pi pi-check"
+                    />
+
+                     <Button
+                        type="button"
+                        label="Confirm & Create Stock"
+                        onClick={opningStock}
+                        loading={isConfirmSubmitting}
+                        disabled={isConfirmSubmitting}
                         icon="pi pi-check"
                     />
                 </div>

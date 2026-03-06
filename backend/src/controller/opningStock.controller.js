@@ -7,6 +7,7 @@ const OpningStockModle = require("../model/opningStock.model");
 const Product = require("../model/product.model");
 const Tank = require("../model/tank.model");
 const CurrentStock = require("../model/currentStock.model");
+const TempStockModel = require("../model/tempStock")
 
 
 const getFinancialYear = (date = new Date()) => {
@@ -32,15 +33,23 @@ const createOpeningStock = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { products } = createOpeningStockSchema.parse(req.body);
 
     const userId = req.user.id;
     const financialYear = getFinancialYear();
 
-    for (const item of products) {
-      const { productId, openingStock, tanks = [] } = item;
+    const tempStocks = await TempStockModel.find({
+      userId,
+      financialYear
+    }).session(session);
 
-   
+    if (!tempStocks.length) {
+      throw new Error("No temp stock found to freeze");
+    }
+
+    for (const tempStock of tempStocks) {
+
+      const { productId, openingStock, tanks } = tempStock;
+
       const product = await Product.findOne({
         _id: productId,
         userId
@@ -50,7 +59,6 @@ const createOpeningStock = async (req, res) => {
         throw new Error("Product not found");
       }
 
-   
       const existing = await OpningStockModle.findOne({
         userId,
         productId,
@@ -63,19 +71,18 @@ const createOpeningStock = async (req, res) => {
         );
       }
 
-      
+      // FUEL PRODUCT
       if (product.type === "FUEL") {
 
-        
         if (openingStock > 0 && !tanks.length) {
           throw new Error(
-            `Tank distribution required for ${product.name}`
+            `Tank distribution missing for ${product.name}`
           );
         }
 
-       
         const tankIds = tanks.map(t => t.tankId.toString());
         const uniqueTankIds = new Set(tankIds);
+
         if (tankIds.length !== uniqueTankIds.size) {
           throw new Error("Duplicate tanks are not allowed");
         }
@@ -91,7 +98,6 @@ const createOpeningStock = async (req, res) => {
           );
         }
 
-        
         const tankDocs = await Tank.find({
           _id: { $in: tankIds },
           userId
@@ -102,6 +108,7 @@ const createOpeningStock = async (req, res) => {
         }
 
         for (const tank of tankDocs) {
+
           const tankData = tanks.find(
             t => t.tankId.toString() === tank._id.toString()
           );
@@ -118,15 +125,18 @@ const createOpeningStock = async (req, res) => {
           tank.currentQuantity = tankData.quantity;
           await tank.save({ session });
         }
+
       } else {
-       
+
         if (tanks.length) {
           throw new Error(
             `Tanks not allowed for non-fuel product (${product.name})`
           );
         }
+
       }
 
+     
       await OpningStockModle.create(
         [{
           userId,
@@ -138,12 +148,18 @@ const createOpeningStock = async (req, res) => {
         { session }
       );
 
-      
+     
       await CurrentStock.findOneAndUpdate(
         { userId, productId },
         { $set: { quantity: openingStock } },
         { upsert: true, new: true, session }
       );
+
+   
+      await TempStockModel.deleteOne({
+        _id: tempStock._id
+      }).session(session);
+
     }
 
     await session.commitTransaction();
@@ -151,134 +167,19 @@ const createOpeningStock = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Opening stock created successfully"
+      message: "Opening stock frozen successfully"
     });
 
   } catch (error) {
+
     await session.abortTransaction();
     session.endSession();
-
-    if (error instanceof ZodError) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation failed",
-        errors: error.issues.map((err) => ({
-          field: err.path.join("."),
-          message: err.message
-        }))
-      });
-    }
 
     return res.status(400).json({
       success: false,
       message: error.message || "Internal server error"
     });
-  }
-};
 
-const getOpeningStockById = async (req, res) => {
-  try {
-    const userId = new mongoose.Types.ObjectId(req.user.id);
-    const { id } = req.params;
-
-    const pipeline = [
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(id),
-          userId: userId
-        }
-      },
-
-      // ✅ Join Product
-      {
-        $lookup: {
-          from: "products",
-          localField: "productId",
-          foreignField: "_id",
-          as: "product"
-        }
-      },
-      { $unwind: "$product" },
-
-     
-      {
-        $lookup: {
-          from: "tanks",
-          localField: "productId",
-          foreignField: "productId",
-          as: "tanks"
-        }
-      },
-
-      
-      {
-        $addFields: {
-          tanks: {
-            $filter: {
-              input: "$tanks",
-              as: "tank",
-              cond: { $eq: ["$$tank.userId", userId] }
-            }
-          }
-        }
-      },
-
-     
-      {
-        $addFields: {
-          tankCount: { $size: "$tanks" }
-        }
-      },
-
-      
-      {
-        $project: {
-          financialYear: 1,
-          openingStock: 1,
-          closingStock: 1,
-          totalPurchase: 1,
-          totalSale: 1,
-          createdAt: 1,
-          updatedAt: 1,
-
-          product: {
-            _id: "$product._id",
-            name: "$product.name",
-            type: "$product.type",
-            unit: "$product.unit"
-          },
-
-          tankCount: 1,
-          tanks: {
-            _id: 1,
-            name: 1,
-            capacity: 1,
-            currentQuantity: 1
-          }
-        }
-      }
-    ];
-
-    const result = await OpningStockModle.aggregate(pipeline);
-
-    if (!result.length) {
-      return res.status(404).json({
-        success: false,
-        message: "Opening stock not found"
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: result[0]
-    });
-
-  } catch (error) {
-    console.error("Error fetching opening stock:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error"
-    });
   }
 };
 
@@ -700,4 +601,4 @@ const carryForwardFinancialYear = async (req, res) => {
   }
 };
 
-module.exports = {carryForwardFinancialYear, createOpeningStock, updateOpeningStock, getOpeningStockById, getOpeningStocks, deleteOpeningStock };
+module.exports = {carryForwardFinancialYear, createOpeningStock, updateOpeningStock, getOpeningStocks, deleteOpeningStock };
