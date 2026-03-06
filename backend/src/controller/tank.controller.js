@@ -292,9 +292,9 @@ const emptyDropdownTanks = async (req, res) => {
 };
 
 
-
 const getTanksByProduct = async (req, res) => {
     try {
+
         const userId = req.user._id;
         const { productId } = req.params;
 
@@ -330,17 +330,31 @@ const getTanksByProduct = async (req, res) => {
             userId,
             isActive: true
         })
-            .select("tankName capacity currentQuantity createdAt")
-            .sort({ createdAt: -1 });
+        .select("tankName capacity currentQuantity createdAt")
+        .sort({ createdAt: -1 });
+
+
+        // ✅ Add available capacity
+        const formattedTanks = tanks.map(tank => ({
+            _id: tank._id,
+            tankName: tank.tankName,
+            capacity: tank.capacity,
+            currentQuantity: tank.currentQuantity,
+            availableCapacity: tank.capacity - tank.currentQuantity,
+            createdAt: tank.createdAt
+        }));
+
 
         return res.json({
             success: true,
-            total: tanks.length,
-            data: tanks
+            total: formattedTanks.length,
+            data: formattedTanks
         });
 
     } catch (error) {
+
         console.error("Error in getTanksByProduct:", error);
+
         return res.status(400).json({
             success: false,
             message: error.message

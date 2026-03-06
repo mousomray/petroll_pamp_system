@@ -14,8 +14,9 @@ import { Button } from "primereact/button";
 
 const workerSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email"),
-  phone: z.string().min(6, "Phone is required"),
+  // email and phone are optional: allow either a valid value or an empty string
+  email: z.union([z.string().email("Invalid email"), z.literal("")]),
+  phone: z.union([z.string().min(6, "Phone must be at least 6 characters"), z.literal("")]),
   workerType: z.string().min(1, "Worker type is required"),
   isActive: z.boolean().optional(),
 });
@@ -80,16 +81,22 @@ function WorkerForm({ workerId = null, onClose, onSuccess }: WorkerFormProps) {
     try {
       if (workerId) {
         // include isActive in edit
-        const payload = { ...form };
+        const payload: any = {
+          name: form.name,
+          workerType: form.workerType,
+          isActive: form.isActive,
+        };
+        if (form.email && String(form.email).trim() !== "") payload.email = String(form.email).trim();
+        if (form.phone && String(form.phone).trim() !== "") payload.phone = String(form.phone).trim();
         const res = await axiosInstance.put(`/api/worker/update-worker/${workerId}`, payload);
         toast.success(res.data?.message || "Worker updated");
       } else {
-        const payload = {
+        const payload: any = {
           name: form.name,
-          email: form.email,
-          phone: form.phone,
           workerType: form.workerType,
         };
+        if (form.email && String(form.email).trim() !== "") payload.email = String(form.email).trim();
+        if (form.phone && String(form.phone).trim() !== "") payload.phone = String(form.phone).trim();
         const res = await axiosInstance.post(`/api/worker/create-worker`, payload);
         toast.success(res.data?.message || "Worker created");
       }
@@ -137,7 +144,7 @@ function WorkerForm({ workerId = null, onClose, onSuccess }: WorkerFormProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">Email <span className="text-red-500">*</span></label>
+            <label className="text-sm font-medium">Email</label>
             <Controller
               name="email"
               control={control}
@@ -149,7 +156,7 @@ function WorkerForm({ workerId = null, onClose, onSuccess }: WorkerFormProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">Phone <span className="text-red-500">*</span></label>
+            <label className="text-sm font-medium">Phone</label>
             <Controller
               name="phone"
               control={control}

@@ -83,6 +83,28 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
     });
 
     const productType = watch("type");
+    const currentUnit = watch("unit");
+
+    // Filter unit options based on product type
+    const filteredUnitOptions = React.useMemo(() => {
+        if (productType === "FUEL") {
+            return unitOptions.filter(option => option.value === "LITRE");
+        } else if (productType === "ACCESSORY") {
+            return unitOptions.filter(option => option.value !== "LITRE");
+        }
+        return unitOptions;
+    }, [productType]);
+
+    // Reset unit when product type changes if current unit is not in filtered options
+    useEffect(() => {
+        const validUnits = filteredUnitOptions.map(option => option.value);
+        if (currentUnit && !validUnits.includes(currentUnit)) {
+            // Set to the first available unit option
+            if (filteredUnitOptions.length > 0) {
+                setValue("unit", filteredUnitOptions[0].value as "LITRE" | "PIECE" | "KG" | "BOX");
+            }
+        }
+    }, [productType, currentUnit, filteredUnitOptions, setValue]);
 
     useEffect(() => {
         fetchTanks();
@@ -258,7 +280,7 @@ function ProductFrom({ productId, onClose, onSuccess }: ProductFormProps) {
                                 render={({ field }) => (
                                     <Dropdown
                                         {...field}
-                                        options={unitOptions}
+                                        options={filteredUnitOptions}
                                         optionLabel="label"
                                         optionValue="value"
                                         placeholder="Select unit"

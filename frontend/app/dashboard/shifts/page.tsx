@@ -144,7 +144,7 @@ function Page() {
     if (!rowData.nozzles || rowData.nozzles.length === 0) return <span className="text-gray-400">N/A</span>;
     return (
       <div className="flex flex-col gap-1">
-        {rowData.nozzles.map((n: any) => (
+        {rowData?.nozzles?.map((n: any) => (
           <div key={n._id} className="text-sm">
             <div className="font-medium">{n.nozzleName ?? n.nozzleNumber ?? n._id}</div>
             <div className="text-xs text-gray-500">{n.tank?.tankName || n.product?.name || ''}</div>

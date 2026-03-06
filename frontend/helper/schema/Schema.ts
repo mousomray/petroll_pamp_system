@@ -238,68 +238,36 @@ export const updateFinancialYearSchema = zod.object({
 });
 
 export const createSupplierSchema = zod.object({
+  // Name is required for create
   name: zod
     .string()
     .min(2, "Name must be at least 2 characters"),
 
-  email: zod
-    .string()
-    .email("Invalid email format")
-    .toLowerCase(),
+  // Optional fields: allow either a valid value or an empty string
+  email: zod.union([zod.string().email("Invalid email format"), zod.literal("")]),
 
-  phone: zod
-    .string()
-    .min(10, "Phone number must be at least 10 digits")
-    .max(11, "Phone number too long"),
+  phone: zod.union([zod.string().min(10, "Phone number must be at least 10 digits").max(11, "Phone number too long"), zod.literal("")]),
 
-  gstId: zod
-    .string()
-    .min(15, "GST ID must be at least 15 characters")
-    .max(15, "GST ID cannot exceed 15 characters")
-    .optional(),
+  gstId: zod.union([zod.string().min(15, "GST ID must be at least 15 characters").max(15, "GST ID cannot exceed 15 characters"), zod.literal("")]),
 
-  address: zod
-    .string()
-    .min(5, "Address must be at least 5 characters")
-    .optional(),
+  address: zod.union([zod.string().min(5, "Address must be at least 5 characters"), zod.literal("")]),
 
-  isActive: zod
-    .boolean()
-    .optional(),
+  isActive: zod.boolean().optional(),
 });
 
 export const updateSupplierSchema = zod.object({
-  name: zod
-    .string()
-    .min(2)
-    .optional(),
+  // For update, all fields are optional; allow empty string as valid input (means unset)
+  name: zod.string().min(2).optional(),
 
-  email: zod
-    .string()
-    .email()
-    .toLowerCase()
-    .optional(),
+  email: zod.union([zod.string().email(), zod.literal("")]).optional(),
 
-  phone: zod
-    .string()
-    .min(10)
-    .max(15)
-    .optional(),
+  phone: zod.union([zod.string().min(10).max(15), zod.literal("")]).optional(),
 
-  gstId: zod
-    .string()
-    .min(15)
-    .max(15)
-    .optional(),
+  gstId: zod.union([zod.string().min(15).max(15), zod.literal("")]).optional(),
 
-  address: zod
-    .string()
-    .min(5)
-    .optional(),
+  address: zod.union([zod.string().min(5), zod.literal("")]).optional(),
 
-  isActive: zod
-    .boolean()
-    .optional()
+  isActive: zod.boolean().optional()
 });
 
 // ===============================

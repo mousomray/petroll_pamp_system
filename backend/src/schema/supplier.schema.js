@@ -9,7 +9,8 @@ const createSupplierSchema = z.object({
   email: z
     .string()
     .email("Invalid email format")
-    .toLowerCase(),
+    .toLowerCase()
+    .optional(),
 
   phone: z
     .string()
@@ -23,7 +24,6 @@ const createSupplierSchema = z.object({
 
   address: z
     .string()
-    .min(5, "Address too short")
     .optional(),
 });
 

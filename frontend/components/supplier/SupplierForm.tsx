@@ -32,6 +32,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
         control,
         reset,
         setValue,
+        getValues,
         formState: { errors },
     } = useForm<CreateSupplierFormData | UpdateSupplierFormData>({
         resolver: zodResolver(isEditMode ? updateSupplierSchema : createSupplierSchema),
@@ -92,7 +93,22 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
 
             const method = isEditMode ? 'put' : 'post';
 
-            const res = await axiosInstance[method](url, data);
+            // Build payload and omit empty email/phone keys
+            const payload: any = {
+                name: data.name,
+                gstId: data.gstId,
+                address: data.address,
+            };
+            if (isEditMode) payload.isActive = (data as any).isActive;
+
+            if ((data as any).email && String((data as any).email).trim() !== "") {
+                payload.email = String((data as any).email).trim();
+            }
+            if ((data as any).phone && String((data as any).phone).trim() !== "") {
+                payload.phone = String((data as any).phone).trim();
+            }
+
+            const res = await axiosInstance[method](url, payload);
 
             toast.success(res.data.message || `Supplier ${isEditMode ? 'updated' : 'created'} successfully!`);
             reset();
@@ -150,7 +166,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                         {/* Email */}
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
-                                Email Address <span className="text-red-500">*</span>
+                                Email Address
                             </label>
                             <div className="p-inputgroup">
                                 <span className="p-inputgroup-addon bg-blue-50">
@@ -162,7 +178,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                                     placeholder="Enter email address"
                                 />
                             </div>
-                            {errors.email && (
+                            {errors.email && String(getValues("email") || "").trim() !== "" && (
                                 <small className="text-red-500 flex items-center gap-1">
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.email.message}
@@ -173,7 +189,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                         {/* Phone */}
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-gray-700">
-                                Phone Number <span className="text-red-500">*</span>
+                                Phone Number
                             </label>
                             <div className="p-inputgroup">
                                 <span className="p-inputgroup-addon bg-blue-50">
@@ -193,7 +209,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                                     }}
                                 />
                             </div>
-                            {errors.phone && (
+                            {errors.phone && String(getValues("phone") || "").trim() !== "" && (
                                 <small className="text-red-500 flex items-center gap-1">
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.phone.message}
@@ -217,7 +233,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                                     maxLength={15}
                                 />
                             </div>
-                            {errors.gstId && (
+                            {errors.gstId && String(getValues("gstId") || "").trim() !== "" && (
                                 <small className="text-red-500 flex items-center gap-1">
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.gstId.message}
@@ -242,7 +258,7 @@ function SupplierForm({ supplierId, onClose, onSuccess }: SupplierFormProps) {
                                 rows={2}
                             />
                         </div>
-                        {errors.address && (
+                        {errors.address && String(getValues("address") || "").trim() !== "" && (
                             <small className="text-red-500 flex items-center gap-1">
                                 <i className="pi pi-exclamation-circle"></i>
                                 {errors.address.message}

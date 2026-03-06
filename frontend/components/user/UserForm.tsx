@@ -255,23 +255,52 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                                 <label className="text-sm font-semibold text-gray-700">
                                     Password <span className="text-red-500">*</span>
                                 </label>
-                                <div className="p-inputgroup">
-                                    <span className="p-inputgroup-addon bg-blue-50">
-                                        <i className="pi pi-lock text-blue-600"></i>
-                                    </span>
-                                    <InputText
-                                        type="password"
-                                        className="w-full"
-                                        {...register("password" as any)}
-                                        placeholder="Enter password"
-                                    />
-                                </div>
-                                {(errors as any).password && (
-                                    <small className="text-red-500 flex items-center gap-1">
-                                        <i className="pi pi-exclamation-circle"></i>
-                                        {(errors as any).password.message}
-                                    </small>
-                                )}
+                                <Controller
+                                    name={"password" as any}
+                                    control={control}
+                                    render={({ field }) => {
+                                        const [showPassword, setShowPassword] = React.useState(false);
+                                        const generatePassword = () => {
+                                            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#_$%&*';
+                                            let pass = '';
+                                            for (let i = 0; i < 6; i++) {
+                                                pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                                            }
+                                            field.onChange(pass);
+                                            setShowPassword(true);
+                                        };
+
+                                        return (
+                                            <>
+                                                <div className="p-inputgroup">
+                                                    <span className="p-inputgroup-addon bg-blue-50">
+                                                        <i className="pi pi-lock text-blue-600"></i>
+                                                    </span>
+                                                    <InputText
+                                                        {...field}
+                                                        type={showPassword ? 'text' : 'password'}
+                                                        className="w-full"
+                                                        placeholder="Enter password"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        icon="pi pi-refresh"
+                                                        onClick={generatePassword}
+                                                        className="bg-indigo-500 hover:bg-indigo-600 text-white border-0 p-2"
+                                                        tooltip="Generate password"
+                                                        tooltipOptions={{ position: 'top' }}
+                                                    />
+                                                </div>
+                                                {(errors as any).password && (
+                                                    <small className="text-red-500 flex items-center gap-1">
+                                                        <i className="pi pi-exclamation-circle"></i>
+                                                        {(errors as any).password.message}
+                                                    </small>
+                                                )}
+                                            </>
+                                        );
+                                    }}
+                                />
                             </div>
                         )}
 

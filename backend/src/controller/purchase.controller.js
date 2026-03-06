@@ -6,25 +6,24 @@ const CurrentStock = require("../model/currentStock.model");
 const OpningStockModle = require("../model/opningStock.model");
 const { createPurchaseSchema } = require("../schema/purchase.schema");
 
-const getFinancialYearFromDate = (date) => {
+const getFinancialYear = (date) => {
     const d = new Date(date);
-
-    if (isNaN(d.getTime())) {
-        throw new Error("Invalid purchase date");
-    }
-
     const year = d.getFullYear();
-    const month = d.getMonth(); // 0-based (April = 3)
+    const month = d.getMonth() + 1;
 
-    return month >= 3
-        ? `${year}-${year + 1}`
-        : `${year - 1}-${year}`;
+    if (month >= 4) {
+        return `${year}-${year + 1}`;
+    } else {
+        return `${year - 1}-${year}`;
+    }
 };
 
 const createPurchase = async (req, res) => {
+
     const session = await mongoose.startSession();
 
     try {
+
         await session.startTransaction();
 
         const userId = req.user._id;
@@ -43,17 +42,37 @@ const createPurchase = async (req, res) => {
         if (!items || !Array.isArray(items) || items.length === 0)
             throw new Error("Purchase items required");
 
-        // ============================
-        // ✅ DUPLICATE INVOICE CHECK
-        // ============================
+
+        // ==========================
+        // FINANCIAL YEAR FROM DATE
+        // ==========================
+        const getFinancialYear = (date) => {
+
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = d.getMonth() + 1;
+
+            if (month >= 4) {
+                return `${year}-${year + 1}`;
+            } else {
+                return `${year - 1}-${year}`;
+            }
+        };
+
+        const financialYear = getFinancialYear(purchaseDate);
+
+
+        // ==========================
+        // DUPLICATE INVOICE CHECK
+        // ==========================
         const existingInvoice = await PurchaseModel.findOne({
             userId,
             invoiceNo
         }).session(session);
 
-        if (existingInvoice) {
+        if (existingInvoice)
             throw new Error("Invoice number already exists");
-        }
+
 
         let subTotal = 0;
         let totalCgst = 0;
@@ -63,9 +82,10 @@ const createPurchase = async (req, res) => {
 
         const purchaseItemsData = [];
 
-        // ============================
+
+        // ==========================
         // PROCESS ITEMS
-        // ============================
+        // ==========================
         for (const item of items) {
 
             if (!item.productId || !item.quantity || item.quantity <= 0)
@@ -78,24 +98,29 @@ const createPurchase = async (req, res) => {
 
             if (!product) throw new Error("Product not found");
 
+
             const costPrice = product.costPrice ?? 0;
             if (!costPrice)
                 throw new Error(`Cost price missing for ${product.name}`);
+
 
             const cgstPercent = product.cgstPercent || 0;
             const sgstPercent = product.sgstPercent || 0;
             const igstPercent = product.igstPercent || 0;
 
+
             const baseAmount = item.quantity * costPrice;
             subTotal += baseAmount;
 
-            // ============================
-            // 🛢 TANK PRODUCT
-            // ============================
+
+            // ==========================
+            // TANK PRODUCT
+            // ==========================
             if (product.tankIds && product.tankIds.length > 0) {
 
                 if (!item.tankDistributions || item.tankDistributions.length === 0)
                     throw new Error(`Tank distribution required for ${product.name}`);
+
 
                 const totalDistributed = item.tankDistributions.reduce(
                     (sum, t) => sum + Number(t.quantity),
@@ -105,10 +130,8 @@ const createPurchase = async (req, res) => {
                 if (totalDistributed !== item.quantity)
                     throw new Error(`Tank quantity mismatch for ${product.name}`);
 
-                for (const dist of item.tankDistributions) {
 
-                    if (!dist.tankId || !dist.quantity || dist.quantity <= 0)
-                        throw new Error("Invalid tank distribution");
+                for (const dist of item.tankDistributions) {
 
                     const tank = await Tank.findOne({
                         _id: dist.tankId,
@@ -120,18 +143,20 @@ const createPurchase = async (req, res) => {
                         throw new Error("Tank not found");
 
                     if (tank.currentQuantity + dist.quantity > tank.capacity)
-                        throw new Error(
-                            `Tank capacity exceeded for ${tank.name}`
-                        );
+                        throw new Error(`Tank capacity exceeded for ${tank.name}`);
 
-                    // ✅ Update Tank
+
+                    // update tank
                     tank.currentQuantity += dist.quantity;
                     await tank.save({ session });
 
+
                     const splitBase = dist.quantity * costPrice;
+
                     const cgstAmount = (splitBase * cgstPercent) / 100;
                     const sgstAmount = (splitBase * sgstPercent) / 100;
                     const igstAmount = (splitBase * igstPercent) / 100;
+
                     const totalTax = cgstAmount + sgstAmount + igstAmount;
                     const splitTotal = splitBase + totalTax;
 
@@ -139,6 +164,7 @@ const createPurchase = async (req, res) => {
                     totalSgst += sgstAmount;
                     totalIgst += igstAmount;
                     grandTotal += splitTotal;
+
 
                     purchaseItemsData.push({
                         productId: product._id,
@@ -154,17 +180,19 @@ const createPurchase = async (req, res) => {
                         total: splitTotal,
                         tankId: dist.tankId
                     });
+
                 }
 
             } else {
 
-                // ============================
-                // 📦 NON-TANK PRODUCT
-                // ============================
+                // ==========================
+                // NORMAL PRODUCT
+                // ==========================
 
                 const cgstAmount = (baseAmount * cgstPercent) / 100;
                 const sgstAmount = (baseAmount * sgstPercent) / 100;
                 const igstAmount = (baseAmount * igstPercent) / 100;
+
                 const totalTax = cgstAmount + sgstAmount + igstAmount;
                 const itemTotal = baseAmount + totalTax;
 
@@ -172,6 +200,7 @@ const createPurchase = async (req, res) => {
                 totalSgst += sgstAmount;
                 totalIgst += igstAmount;
                 grandTotal += itemTotal;
+
 
                 purchaseItemsData.push({
                     productId: product._id,
@@ -187,30 +216,30 @@ const createPurchase = async (req, res) => {
                     total: itemTotal,
                     tankId: null
                 });
+
             }
 
-            // ============================
-            // 📦 UPDATE CURRENT STOCK
-            // ============================
+
+            // ==========================
+            // UPDATE CURRENT STOCK
+            // ==========================
             await CurrentStock.updateOne(
                 { userId, productId: product._id },
                 { $inc: { quantity: item.quantity } },
                 { upsert: true, session }
             );
 
-            // ============================
-            // 📊 UPDATE OPENING STOCK TABLE
-            // ============================
 
-            const currentYear = new Date().getFullYear();
-            const nextYear = currentYear + 1;
-            const financialYear = `${currentYear}-${nextYear}`;
+            // ==========================
+            // UPDATE OPENING STOCK
+            // ==========================
 
             const existingOpeningStock = await OpningStockModle.findOne({
                 userId,
                 productId: product._id,
                 financialYear
             }).session(session);
+
 
             if (existingOpeningStock) {
 
@@ -232,11 +261,13 @@ const createPurchase = async (req, res) => {
                 }], { session });
 
             }
+
         }
 
-        // ============================
-        // CREATE PURCHASE ENTRY
-        // ============================
+
+        // ==========================
+        // CREATE PURCHASE
+        // ==========================
         const purchaseDoc = await PurchaseModel.create([{
             userId,
             supplierId,
@@ -254,23 +285,27 @@ const createPurchase = async (req, res) => {
             createdBy: userId
         }], { session });
 
+
         const purchaseId = purchaseDoc[0]._id;
 
-        purchaseItemsData.forEach(item => {
-            item.purchaseId = purchaseId;
+        purchaseItemsData.forEach(i => {
+            i.purchaseId = purchaseId;
         });
+
 
         await PurchaseItemModel.insertMany(purchaseItemsData, { session });
 
+
         await session.commitTransaction();
         session.endSession();
+
 
         return res.status(201).json({
             success: true,
             message: "Purchase created successfully",
             data: {
-                invoiceNo,
                 purchaseId,
+                invoiceNo,
                 totalAmount: grandTotal
             }
         });

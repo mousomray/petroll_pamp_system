@@ -21,12 +21,12 @@ const addWorker = async (req, res) => {
             });
         }
         const existingWorker = await workerModel.findOne({
-            email: parsedData.email
+            name: parsedData.name
         });
         if (existingWorker) {
             return res.status(400).json({
                 success: false,
-                message: "Worker with this email already exists"
+                message: "Worker with this name already exists"
             });
         }
         const worker = await workerModel.create({
@@ -39,6 +39,7 @@ const addWorker = async (req, res) => {
             data: worker
         });
     } catch (error) {
+        console.log("Error creating worker:", error);
         return res.status(400).json({
             success: false,
             message: error.message

@@ -364,9 +364,9 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                         Purchase Information
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
                         {/* Invoice No */}
-                        <div className="space-y-1">
+                        <div className="space-y-1 md:col-span-2">
                             <label className="text-sm font-semibold text-gray-700">
                                 Invoice No
                             </label>
@@ -378,19 +378,20 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                         value={field.value}
                                         onChange={(e) => field.onChange(e.target.value)}
                                         placeholder="Invoice No"
-                                        className="w-full"
+                                        className="w-full h-10 px-3 bg-white border rounded-md"
                                     />
                                 )}
                             />
                         </div>
+
                         {/* Supplier */}
-                        <div className="space-y-1">
+                        <div className="space-y-1 md:col-span-5">
                             <label className="text-sm font-semibold text-gray-700">
                                 Supplier <span className="text-red-500">*</span>
                             </label>
-                            <div className="flex gap-2">
-                                <div className="p-inputgroup flex-1">
-                                    <span className="p-inputgroup-addon bg-blue-50">
+                            <div className="flex gap-2 items-center">
+                                <div className="p-inputgroup flex-1 rounded-md overflow-hidden border">
+                                    <span className="p-inputgroup-addon bg-gray-50 border-r h-10 flex items-center justify-center px-3">
                                         <i className="pi pi-users text-blue-600"></i>
                                     </span>
                                     <Controller
@@ -403,7 +404,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                                 options={supplierOptions}
                                                 placeholder="Select supplier"
                                                 filter
-                                                className="w-full"
+                                                className="w-full h-10"
                                             />
                                         )}
                                     />
@@ -412,7 +413,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                     type="button"
                                     icon="pi pi-plus"
                                     onClick={() => setShowSupplierDialog(true)}
-                                    className="bg-green-500 border-0 hover:bg-green-600 text-lg p-3"
+                                    className="h-10 w-10 bg-green-500 border-0 hover:bg-green-600 text-white rounded-md shadow-sm flex items-center justify-center"
                                     tooltip="Create New Supplier"
                                     tooltipOptions={{ position: 'top' }}
                                 />
@@ -426,12 +427,12 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                         </div>
 
                         {/* Purchase Date */}
-                        <div className="space-y-2">
+                        <div className="space-y-2 md:col-span-3">
                             <label className="text-sm font-semibold text-gray-700">
                                 Purchase Date <span className="text-red-500">*</span>
                             </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
+                            <div className="p-inputgroup rounded-md overflow-hidden border flex items-center">
+                                <span className="p-inputgroup-addon bg-gray-50 border-r h-10 flex items-center justify-center px-3">
                                     <i className="pi pi-calendar-plus text-blue-600"></i>
                                 </span>
                                 <Controller
@@ -443,7 +444,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                             onChange={(e) => field.onChange(e.value)}
                                             dateFormat="dd/mm/yy"
                                             placeholder="Select purchase date"
-                                            className="w-full"
+                                            className="w-full h-10"
                                         />
                                     )}
                                 />
@@ -457,12 +458,12 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                         </div>
 
                         {/* Payment Method */}
-                        <div className="space-y-2">
+                        <div className="space-y-2 md:col-span-2">
                             <label className="text-sm font-semibold text-gray-700">
                                 Payment Method <span className="text-red-500">*</span>
                             </label>
-                            <div className="p-inputgroup">
-                                <span className="p-inputgroup-addon bg-blue-50">
+                            <div className="p-inputgroup rounded-md overflow-hidden border flex items-center">
+                                <span className="p-inputgroup-addon bg-gray-50 border-r h-10 flex items-center justify-center px-3">
                                     <i className="pi pi-wallet text-blue-600"></i>
                                 </span>
                                 <Controller
@@ -474,7 +475,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                             onChange={(e) => field.onChange(e.value)}
                                             options={paymentMethodOptions}
                                             placeholder="Select payment method"
-                                            className="w-full"
+                                            className="w-full h-10"
                                         />
                                     )}
                                 />
@@ -501,7 +502,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                             label="Add Item"
                             icon="pi pi-plus"
                             onClick={addItem}
-                            className="bg-blue-500 text-white border-0 px-3 py-2 text-sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white border-0 px-4 py-2 text-sm rounded-md shadow-sm"
                             size="small"
                         />
                     </div>
@@ -509,7 +510,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                     {fields.map((field, index) => (
                         <div
                             key={field.id}
-                            className="border border-gray-200 rounded-lg p-3 space-y-3 bg-gray-50"
+                            className="bg-white border border-gray-200 rounded-lg p-4 space-y-4 shadow-sm"
                         >
                             <div className="flex items-center justify-between mb-1">
                                 <h4 className="text-sm font-semibold text-gray-700">
@@ -521,7 +522,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                         label="Remove Item"
                                         icon="pi pi-trash"
                                         onClick={() => removeItem(index)}
-                                        className="bg-red-500 hover:bg-red-600 text-white border-0 px-3 py-2"
+                                        className="bg-red-500 hover:bg-red-600 text-white border-0 px-3 py-2 rounded-md"
                                         size="small"
                                         severity="danger"
                                     />
@@ -589,7 +590,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                                 setProductDialogIndex(index);
                                                 setShowProductDialog(true);
                                             }}
-                                            className="bg-green-500 border-0 hover:bg-green-600 text-lg p-3"
+                                            className="bg-green-500 border-0 hover:bg-green-600 text-white p-3 rounded-md shadow-sm"
                                             tooltip="Create New Product"
                                             tooltipOptions={{ position: 'top' }}
                                         />
@@ -641,7 +642,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                 }
                                 
                                 const options = (itemTanks[index] || []).map((t) => ({ 
-                                    label: `${t.tankName} - Capacity: ${t.capacity}`, 
+                                    label: `${t.tankName} - Available Space: ${t.availableCapacity} Liture`, 
                                     value: t._id 
                                 }));
                                 

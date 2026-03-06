@@ -10,7 +10,8 @@ const createWorkerSchema = z.object({
   email: z
     .string()
     .email("Invalid email format")
-    .toLowerCase(),
+    .toLowerCase()
+    .optional(),
 
   phone: z
     .string()
