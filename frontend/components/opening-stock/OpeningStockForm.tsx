@@ -67,6 +67,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
 
     const createForm = useForm<CreateOpeningStockFormData>({
         resolver: zodResolver(createOpeningStockSchema),
+        mode: "onChange",
         defaultValues: {
             productIds: [],
         },
@@ -117,21 +118,34 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
             const res = await axiosInstance.get("/api/product/dropdown-all-products", {
                 params: { page: 1, limit: 1000 },
             });
-            const updatedProducts = res.data.products || [];
+            const updatedProducts: Product[] = res.data.products || [];
+            
+            // Find the newly created product (the one not in the current products list)
+            const currentProductIds = products.map((p: Product) => p._id);
+            const newProduct = updatedProducts.find((p: Product) => !currentProductIds.includes(p._id));
+            
+            // Update products state
             setProducts(updatedProducts);
             
             // Auto-select the newly created product
-            if (updatedProducts.length > 0) {
-                const newProduct = updatedProducts[updatedProducts.length - 1];
-                const currentProductIds = createForm.watch("productIds") || [];
-                // Add the new product ID to the selected products
-                createForm.setValue("productIds", [...currentProductIds, newProduct._id]);
+            if (newProduct) {
+                const currentSelectedIds = createForm.watch("productIds") || [];
+                const updatedSelectedIds = [...currentSelectedIds, newProduct._id];
+                
+                // Update form value and trigger validation
+                createForm.setValue("productIds", updatedSelectedIds, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true
+                });
+                
                 toast.success(`Product "${newProduct.name}" added and selected`);
             }
             
             setShowProductDialog(false);
         } catch (error: any) {
             console.error("Failed to refresh products:", error);
+            toast.error("Failed to refresh product list");
             setShowProductDialog(false);
         }
     };
