@@ -277,7 +277,7 @@ function Page() {
         },
     ];
 
-    // disable Add button when there is already data in the table
+    
     const isAddDisabled = Array.isArray(stockData) && stockData.length > 0;
 
     const header = (
@@ -343,7 +343,7 @@ function Page() {
                 <i className="pi pi-database text-white text-2xl"></i>
             </div>
             <div>
-                <h2 className="text-xl font-bold text-white">Add Opening Stock</h2>
+                <h2 className="text-xl font-bold text-white">Add New Supplier</h2>
                 <p className="text-sm text-white/90">Create a new items opening stock</p>
             </div>
         </div>
@@ -404,7 +404,7 @@ function Page() {
                    
                 </DataTable>
 
-                {/* popup menu (single instance) */}
+               
                 <Menu model={menuModel} popup ref={menu} />
 
                 <Dialog
@@ -425,7 +425,7 @@ function Page() {
                             setSelectedStock(null);
                         }}
                         onSuccess={() => {
-                            fetchFinancialYears(); // Refresh dropdown options
+                            fetchFinancialYears(); 
                             fetchStockData();
                             setVisible(false);
                             setEditStockId(null);
