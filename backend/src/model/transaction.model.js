@@ -24,7 +24,6 @@ const transactionSchema = new mongoose.Schema(
       enum: ["INCOME", "EXPENSE"],
       required: true,
     },
-
     paymentMethod: {
       type: String,
       enum: ["CASH", "UPI", "BANK"],
@@ -38,7 +37,7 @@ const transactionSchema = new mongoose.Schema(
       default: Date.now,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Transaction = mongoose.model("Transaction", transactionSchema);
