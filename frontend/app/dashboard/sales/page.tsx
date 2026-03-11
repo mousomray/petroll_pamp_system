@@ -154,10 +154,10 @@ function Page() {
     if (!rowData?.saleItems || rowData?.saleItems.length === 0) return <span className="text-gray-400">N/A</span>;
     return (
       <div className="flex flex-col gap-1">
-        {rowData.saleItems.map((it: any) => (
-          <div key={it._id} className="text-sm">
-            <div className="font-medium">{it.product?.name || 'Item'}</div>
-            <div className="text-xs text-gray-500">{it.qty} × ₹{(it.price || 0).toLocaleString()} = ₹{(it.amount || 0).toLocaleString()}</div>
+        {rowData?.saleItems?.map((it: any, k: number) => (
+          <div key={it?._id || `sale-item-${k}`} className="text-sm">
+            <div className="font-medium">{it?.product?.name || 'Item'}</div>
+            <div className="text-xs text-gray-500">{it?.qty} × ₹{(it?.price || 0).toLocaleString()} = ₹{(it?.amount || 0).toLocaleString()}</div>
           </div>
         ))}
       </div>
@@ -334,8 +334,8 @@ function Page() {
                 <div>
                   <h4 className="font-medium">Items</h4>
                   <div className="mt-2 space-y-2">
-                    {(selectedSale.saleItems || []).map((it: any) => (
-                      <div key={it._id} className="flex justify-between">
+                    {(selectedSale.saleItems || []).map((it: any, idx: number) => (
+                      <div key={it._id || `detail-item-${idx}`} className="flex justify-between">
                         <div className="text-sm">{it.product?.name || 'Item'}</div>
                         <div className="text-sm font-semibold">₹{(it.amount || 0).toLocaleString()}</div>
                       </div>
