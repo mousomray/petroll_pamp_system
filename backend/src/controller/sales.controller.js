@@ -8,6 +8,8 @@ const MeterReadingModel = require("../model/meterReading.model")
 const ProductModel = require("../model/product.model")
 const OpeningStockModel = require("../model/opningStock.model")
 const CurrentStock = require("../model/currentStock.model")
+const AccountHead = require("../model/accountHead.model")
+const TransactionModel = require("../model/transaction.model")
 const { createAccessorySaleSchema } = require("../schema/saleSchema")
 
 
@@ -183,10 +185,12 @@ const createShiftWiseSales = async (req, res) => {
 
 
 const createSalesForAccessory = async (req, res) => {
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
+
     const userId = req.user?._id;
     const { items, paymentMethod } = req.body;
 
@@ -196,6 +200,7 @@ const createSalesForAccessory = async (req, res) => {
 
     // Fetch accessory products
     const productIds = items.map(i => i.productId);
+
     const products = await ProductModel.find({
       _id: { $in: productIds },
       userId,
@@ -207,7 +212,7 @@ const createSalesForAccessory = async (req, res) => {
       throw new Error("Accessory products not found");
     }
 
-    // Fetch current stock for all products
+    // Fetch current stock
     const stocks = await CurrentStock.find({
       userId,
       productId: { $in: productIds }
@@ -218,16 +223,17 @@ const createSalesForAccessory = async (req, res) => {
       stockMap[s.productId.toString()] = s.quantity;
     });
 
-    // Validate stock availability
+    // Validate stock
     for (const item of items) {
       const availableQty = stockMap[item.productId] || 0;
+
       if (item.qty > availableQty) {
         throw new Error(`Not enough stock for product ${item.productId}. Available: ${availableQty}, Requested: ${item.qty}`);
       }
     }
 
-    // Create sale
     const invoiceNumber = `INV-${Date.now()}`;
+
     let totalQty = 0;
     let totalAmount = 0;
 
@@ -241,9 +247,11 @@ const createSalesForAccessory = async (req, res) => {
     }], { session });
 
     const saleDoc = sales[0];
+
     const saleItemsData = [];
 
     for (const item of items) {
+
       const product = products.find(p => p._id.toString() === item.productId);
       if (!product) continue;
 
@@ -282,10 +290,14 @@ const createSalesForAccessory = async (req, res) => {
       }).session(session);
 
       if (openingStock) {
+
         openingStock.totalSale += qty;
         openingStock.closingStock -= qty;
+
         await openingStock.save({ session });
+
       } else {
+
         await OpeningStockModel.create([{
           userId,
           productId: product._id,
@@ -295,7 +307,9 @@ const createSalesForAccessory = async (req, res) => {
           totalSale: qty,
           closingStock: -qty
         }], { session });
+
       }
+
     }
 
     if (saleItemsData.length === 0) {
@@ -306,7 +320,32 @@ const createSalesForAccessory = async (req, res) => {
 
     saleDoc.totalQty = totalQty;
     saleDoc.totalAmount = totalAmount;
+
     await saleDoc.save({ session });
+
+    // ==========================
+    // TRANSACTION ENTRY (INCOME)
+    // ==========================
+
+    const accessorySalesHead = await AccountHead.findOne({
+      userId,
+      name: "Accessory Sales",
+      type: "INCOME"
+    }).session(session);
+
+    if (accessorySalesHead) {
+
+      await TransactionModel.create([{
+        userId,
+        accountHead: accessorySalesHead._id,
+        amount: totalAmount,
+        type: "INCOME",
+        paymentMethod: paymentMethod || "CASH",
+        note: `Accessory sale invoice ${invoiceNumber}`,
+        transactionDate: new Date()
+      }], { session });
+
+    }
 
     await session.commitTransaction();
     session.endSession();
@@ -321,15 +360,19 @@ const createSalesForAccessory = async (req, res) => {
     });
 
   } catch (error) {
+
     await session.abortTransaction();
     session.endSession();
 
     console.error("Accessory Sales Error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message
     });
+
   }
+
 };
 
 

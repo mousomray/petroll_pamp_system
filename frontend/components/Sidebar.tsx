@@ -145,9 +145,9 @@ const Sidebar: React.FC<SidebarProps> = ({ role, user }) => {
               icon: "pi-shopping-cart"
             },
             {
-              href:"/dashboard/sales",
-              label:"Sales",
-              icon:"pi-money-bill"
+              href: "/dashboard/sales",
+              label: "Sales",
+              icon: "pi-money-bill"
             },
             {
               href: "/dashboard/nozzles",
@@ -182,13 +182,13 @@ const Sidebar: React.FC<SidebarProps> = ({ role, user }) => {
           icon: "pi-book",
           children: [
             {
-              href: "/dashboard/expenses",
-              label: "Expenses",
-              icon: "pi-money-bill",
+              href: "/dashboard/all-heads",
+              label: "All Heads",
+              icon: "pi-list",
             },
             {
-              href: "/dashboard/income",
-              label: "Income",
+              href: "/dashboard/transaction",
+              label: "Transaction",
               icon: "pi-money-bill",
             },
           ],

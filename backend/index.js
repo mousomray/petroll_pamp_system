@@ -41,6 +41,7 @@ const shiftRoutes = require("./src/routes/shift.routes.js")
 const meterReadingRoutes = require("./src/routes/meterReding.routes.js")
 const salesRoutes = require("./src/routes/sales.routes.js")
 const accountHeadRoutes = require("./src/routes/accountHead.routes.js")
+const transactionRoutes = require("./src/routes/transaction.routes.js")
 const dashboardRoutes = require("./src/routes/dashboard.routes.js")
 
 app.use("/api/register", registerRoutes)
@@ -58,6 +59,7 @@ app.use("/api/shift", shiftRoutes)
 app.use("/api/meter-reading", meterReadingRoutes)
 app.use("/api/sales", salesRoutes)
 app.use("/api/account-head", accountHeadRoutes)
+app.use("/api/transaction", transactionRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 
 const port = process.env.PORT

@@ -4,6 +4,8 @@ const Product = require("../model/product.model");
 const Tank = require("../model/tank.model");
 const CurrentStock = require("../model/currentStock.model");
 const OpningStockModle = require("../model/opningStock.model");
+const AccountHead = require("../model/accountHead.model");
+const TransactionModel = require("../model/transaction.model");
 const { createPurchaseSchema } = require("../schema/purchase.schema");
 
 const getFinancialYear = (date) => {
@@ -82,6 +84,10 @@ const createPurchase = async (req, res) => {
 
         const purchaseItemsData = [];
 
+        // ACCOUNT HEAD TOTAL TRACK
+        let fuelExpense = 0;
+        let accessoryExpense = 0;
+
 
         // ==========================
         // PROCESS ITEMS
@@ -111,6 +117,18 @@ const createPurchase = async (req, res) => {
 
             const baseAmount = item.quantity * costPrice;
             subTotal += baseAmount;
+
+
+            // ==========================
+            // ACCOUNT HEAD EXPENSE CALCULATION
+            // ==========================
+            if (product.type === "FUEL") {
+                fuelExpense += baseAmount;
+            }
+
+            if (product.type === "ACCESSORY") {
+                accessoryExpense += baseAmount;
+            }
 
 
             // ==========================
@@ -292,8 +310,59 @@ const createPurchase = async (req, res) => {
             i.purchaseId = purchaseId;
         });
 
-
         await PurchaseItemModel.insertMany(purchaseItemsData, { session });
+
+
+        // ==========================
+        // ACCOUNT HEAD EXPENSE ENTRY
+        // ==========================
+
+        const fuelHead = await AccountHead.findOne({
+            userId,
+            name: "Fuel Purchase",
+            type: "EXPENSE"
+        }).session(session);
+
+        const accessoryHead = await AccountHead.findOne({
+            userId,
+            name: "Accessory Expenses",
+            type: "EXPENSE"
+        }).session(session);
+
+
+        const transactions = [];
+
+        if (fuelExpense > 0 && fuelHead) {
+
+            transactions.push({
+                userId,
+                accountHead: fuelHead._id,
+                amount: fuelExpense,
+                type: "EXPENSE",
+                paymentMethod,
+                note: `Fuel purchase invoice ${invoiceNo}`,
+                transactionDate: purchaseDate
+            });
+
+        }
+
+        if (accessoryExpense > 0 && accessoryHead) {
+
+            transactions.push({
+                userId,
+                accountHead: accessoryHead._id,
+                amount: accessoryExpense,
+                type: "EXPENSE",
+                paymentMethod,
+                note: `Accessory purchase invoice ${invoiceNo}`,
+                transactionDate: purchaseDate
+            });
+
+        }
+
+        if (transactions.length > 0) {
+            await TransactionModel.insertMany(transactions, { session });
+        }
 
 
         await session.commitTransaction();

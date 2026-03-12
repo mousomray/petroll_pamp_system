@@ -11,8 +11,22 @@ const SalesModel = require("../model/sales.model")
 const ProductModel = require("../model/product.model")
 const SaleItemModel = require("../model/saleItem.model")
 const CurrentStockModel = require("../model/currentStock.model")
+const OpningStockModle = require("../model/opningStock.model")
+const AccountHead = require("../model/accountHead.model")
+const Transaction = require("../model/transaction.model")
 
 const DEFAULT_PAGE_SIZE = parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
+
+const getFinancialYear = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0 = Jan
+
+  if (month >= 3) {
+    return `${year}-${year + 1}`;
+  } else {
+    return `${year - 1}-${year}`;
+  }
+};
 
 const createShift = async (req, res) => {
   try {
@@ -69,7 +83,7 @@ const createShift = async (req, res) => {
 
       nozzleIds = nozzles.map(n => n.nozzleId);
 
-     
+
       const validNozzles = await NozzleModel.find({
         _id: { $in: nozzleIds },
         userId
@@ -82,7 +96,7 @@ const createShift = async (req, res) => {
         });
       }
 
-      
+
       const nozzleInUse = await ShiftModel.findOne({
         nozzleIds: { $in: nozzleIds },
         status: "OPEN"
@@ -97,7 +111,7 @@ const createShift = async (req, res) => {
 
     }
 
-    
+
     const shift = await ShiftModel.create({
       workerId,
       nozzleIds,
@@ -106,7 +120,7 @@ const createShift = async (req, res) => {
       shiftStart: new Date()
     });
 
-   
+
     if (worker.workerType === "NOZZLE_BOY") {
 
       const meterReadings = nozzles.map(n => ({
@@ -229,15 +243,15 @@ const getAllShifts = async (req, res) => {
       // Search Filter
       ...(search
         ? [{
-            $match: {
-              $or: [
-                { "worker.name": { $regex: search, $options: "i" } },
-                { "nozzles.nozzleNumber": { $regex: search, $options: "i" } },
-                { "product.name": { $regex: search, $options: "i" } },
-                { status: { $regex: search, $options: "i" } }
-              ]
-            }
-          }]
+          $match: {
+            $or: [
+              { "worker.name": { $regex: search, $options: "i" } },
+              { "nozzles.nozzleNumber": { $regex: search, $options: "i" } },
+              { "product.name": { $regex: search, $options: "i" } },
+              { status: { $regex: search, $options: "i" } }
+            ]
+          }
+        }]
         : []),
 
       // Group Data
@@ -536,6 +550,10 @@ const getShiftById = async (req, res) => {
 
 
 const closeShift = async (req, res) => {
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
 
     const validatedData = closeShiftMultipleReadingsSchema.parse(req.body);
@@ -547,7 +565,7 @@ const closeShift = async (req, res) => {
       _id: shiftId,
       status: "OPEN",
       userId
-    });
+    }).session(session);
 
     if (!shift) {
       return res.status(404).json({
@@ -556,7 +574,7 @@ const closeShift = async (req, res) => {
       });
     }
 
-    const worker = await WorkerModel.findById(shift.workerId);
+    const worker = await WorkerModel.findById(shift.workerId).session(session);
 
     if (!worker) {
       return res.status(404).json({
@@ -573,7 +591,7 @@ const closeShift = async (req, res) => {
       for (const r of readings) {
 
         let meterReading = r.readingId
-          ? await MeterReadingModel.findById(r.readingId)
+          ? await MeterReadingModel.findById(r.readingId).session(session)
           : null;
 
         let openingReading = 0;
@@ -582,7 +600,7 @@ const closeShift = async (req, res) => {
 
           const lastReading = await MeterReadingModel.findOne({
             nozzleId: r.nozzleId
-          }).sort({ createdAt: -1 });
+          }).sort({ createdAt: -1 }).session(session);
 
           openingReading = lastReading?.closingReading || 0;
 
@@ -602,9 +620,11 @@ const closeShift = async (req, res) => {
             meterReading.closingReading - meterReading.openingReading;
         }
 
-        await meterReading.save();
+        await meterReading.save({ session });
 
-        const nozzle = await NozzleModel.findById(r.nozzleId).select("tank");
+        const nozzle = await NozzleModel.findById(r.nozzleId)
+          .select("tank")
+          .session(session);
 
         if (!nozzle) continue;
 
@@ -622,9 +642,8 @@ const closeShift = async (req, res) => {
 
     const tanks = await TankModel.find({
       _id: { $in: tankIds }
-    });
+    }).session(session);
 
-    // Prevent negative tank
     for (const tank of tanks) {
 
       const used = tankUsage[tank._id.toString()];
@@ -641,11 +660,11 @@ const closeShift = async (req, res) => {
       tankIds: { $in: tankIds },
       type: "FUEL",
       userId
-    });
+    }).session(session);
 
     const invoiceNumber = `INV-${Date.now()}`;
 
-    const sales = await SalesModel.create({
+    const sales = await SalesModel.create([{
       shiftId,
       workerId: shift.workerId,
       saleType: "FUEL",
@@ -653,21 +672,23 @@ const closeShift = async (req, res) => {
       totalQty: 0,
       totalAmount: 0,
       userId
-    });
+    }], { session });
+
+    const saleDoc = sales[0];
 
     let totalQty = 0;
     let totalAmount = 0;
 
     const saleItems = [];
-
-    // product wise usage
     const productUsage = {};
 
     for (const nozzleId in nozzleUsage) {
 
       const litres = nozzleUsage[nozzleId];
 
-      const nozzle = await NozzleModel.findById(nozzleId).select("tank");
+      const nozzle = await NozzleModel.findById(nozzleId)
+        .select("tank")
+        .session(session);
 
       if (!nozzle) continue;
 
@@ -692,7 +713,7 @@ const closeShift = async (req, res) => {
       productUsage[productId] += litres;
 
       saleItems.push({
-        saleId: sales._id,
+        saleId: saleDoc._id,
         productId: product._id,
         nozzleId,
         qty: litres,
@@ -703,75 +724,119 @@ const closeShift = async (req, res) => {
     }
 
     if (saleItems.length) {
-      await SaleItemModel.insertMany(saleItems);
+      await SaleItemModel.insertMany(saleItems, { session });
     }
 
-    sales.totalQty = totalQty;
-    sales.totalAmount = totalAmount;
+    saleDoc.totalQty = totalQty;
+    saleDoc.totalAmount = totalAmount;
 
-    await sales.save();
+    await saleDoc.save({ session });
 
-    // 🔴 Reduce quantity from CurrentStock
+    // -----------------------------
+    // UPDATE CURRENT STOCK + OPENING STOCK
+    // -----------------------------
+
     for (const productId in productUsage) {
 
       const usedQty = productUsage[productId];
 
-      const stock = await CurrentStockModel.findOne({
-        userId,
-        productId
-      });
-
-      if (!stock) {
-        return res.status(400).json({
-          success: false,
-          message: "Current stock not found"
-        });
-      }
-
-      if (stock.quantity < usedQty) {
-        return res.status(400).json({
-          success: false,
-          message: "Not enough stock available"
-        });
-      }
-
       await CurrentStockModel.updateOne(
         { userId, productId },
-        {
-          $inc: { quantity: -usedQty }
-        }
+        { $inc: { quantity: -usedQty } },
+        { session }
       );
+
+      const financialYear = getFinancialYear();
+
+      let openingStock = await OpningStockModle.findOne({
+        userId,
+        productId,
+        financialYear
+      }).session(session);
+
+      if (openingStock) {
+
+        openingStock.totalSale += usedQty;
+        openingStock.closingStock -= usedQty;
+
+        await openingStock.save({ session });
+
+      } else {
+
+        await OpningStockModle.create([{
+          userId,
+          productId,
+          financialYear,
+          openingStock: 0,
+          totalPurchase: 0,
+          totalSale: usedQty,
+          closingStock: usedQty
+        }], { session });
+
+      }
     }
 
-    // Reduce tank quantity
+    // -----------------------------
+    // FUEL SALES TRANSACTION
+    // -----------------------------
+
+    const fuelSalesHead = await AccountHead.findOne({
+      userId,
+      name: "Fuel Sales",
+      type: "INCOME"
+    }).session(session);
+
+    if (fuelSalesHead) {
+
+      await Transaction.create([{
+        userId,
+        accountHead: fuelSalesHead._id,
+        amount: totalAmount,
+        type: "INCOME",
+        paymentMethod: "CASH",
+        note: `Fuel sale invoice ${invoiceNumber}`,
+        transactionDate: new Date()
+      }], { session });
+
+    }
+
+    // -----------------------------
+    // REDUCE TANK QUANTITY
+    // -----------------------------
+
     for (const tank of tanks) {
 
       const used = tankUsage[tank._id.toString()];
 
       await TankModel.updateOne(
         { _id: tank._id },
-        {
-          $inc: { currentQuantity: -used }
-        }
+        { $inc: { currentQuantity: -used } },
+        { session }
       );
     }
 
     shift.status = "CLOSED";
     shift.shiftEnd = new Date();
 
-    await shift.save();
+    await shift.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     return res.status(200).json({
       success: true,
       message: "Shift closed successfully",
       data: {
         shift,
-        sales,
+        sales: saleDoc,
         saleItems
       }
     });
 
   } catch (error) {
+
+    await session.abortTransaction();
+    session.endSession();
 
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -786,7 +851,6 @@ const closeShift = async (req, res) => {
       success: false,
       message: error.message
     });
-
   }
 };
 
