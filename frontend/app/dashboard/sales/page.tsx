@@ -198,6 +198,20 @@ function Page() {
     setDetailsVisible(true);
   };
 
+  const handleViewInvoice = (rowData: any) => {
+    try {
+      // Get the base URL from axios instance or use default
+      const baseURL = axiosInstance.defaults.baseURL || "http://localhost:8090";
+      const invoiceUrl = `${baseURL}/api/sales/generate-sales-invoice/${rowData._id}`;
+
+      // Open PDF in new tab
+      window.open(invoiceUrl, '_blank');
+      toast.success('Opening invoice in new tab...');
+    } catch (err: any) {
+      toast.error('Failed to open invoice');
+    }
+  };
+
   const confirmDelete = (rowData: any) => {
     confirmDialog({
       message: `Are you sure you want to delete invoice "${rowData.invoiceNumber}"?`,
@@ -218,10 +232,10 @@ function Page() {
 
   const menuModel = [
     {
-      label: "View Details",
-      icon: "pi pi-eye",
+      label: "View Invoice (PDF)",
+      icon: "pi pi-file-pdf",
       command: () => {
-        if (selectedSale) handleViewDetails(selectedSale);
+        if (selectedSale) handleViewInvoice(selectedSale);
       },
     },
     {

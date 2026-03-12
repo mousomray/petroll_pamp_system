@@ -1,7 +1,6 @@
 const mongoose = require("mongoose")
 const SaleItemModel = require("../model/saleItem.model")
 const SalesModel = require("../model/sales.model")
-
 const ShiftModel = require("../model/shiftModel")
 const NozzleModel = require("../model/nozzel.model")
 const MeterReadingModel = require("../model/meterReading.model")
@@ -11,6 +10,9 @@ const CurrentStock = require("../model/currentStock.model")
 const AccountHead = require("../model/accountHead.model")
 const TransactionModel = require("../model/transaction.model")
 const { createAccessorySaleSchema } = require("../schema/saleSchema")
+const puppeteer = require("puppeteer-core");
+const path = require("path");
+const ejs = require("ejs");
 
 
 const createShiftWiseSales = async (req, res) => {
@@ -198,7 +200,6 @@ const createSalesForAccessory = async (req, res) => {
       throw new Error("No items provided");
     }
 
-    // Fetch accessory products
     const productIds = items.map(i => i.productId);
 
     const products = await ProductModel.find({
@@ -208,11 +209,6 @@ const createSalesForAccessory = async (req, res) => {
       isActive: true
     }).session(session);
 
-    if (!products.length) {
-      throw new Error("Accessory products not found");
-    }
-
-    // Fetch current stock
     const stocks = await CurrentStock.find({
       userId,
       productId: { $in: productIds }
@@ -223,12 +219,18 @@ const createSalesForAccessory = async (req, res) => {
       stockMap[s.productId.toString()] = s.quantity;
     });
 
-    // Validate stock
+    // =====================
+    // STOCK VALIDATION
+    // =====================
+
     for (const item of items) {
+
       const availableQty = stockMap[item.productId] || 0;
 
       if (item.qty > availableQty) {
-        throw new Error(`Not enough stock for product ${item.productId}. Available: ${availableQty}, Requested: ${item.qty}`);
+        throw new Error(
+          `Not enough stock for product ${item.productId}. Available: ${availableQty}`
+        );
       }
     }
 
@@ -253,6 +255,7 @@ const createSalesForAccessory = async (req, res) => {
     for (const item of items) {
 
       const product = products.find(p => p._id.toString() === item.productId);
+
       if (!product) continue;
 
       const qty = item.qty;
@@ -271,16 +274,21 @@ const createSalesForAccessory = async (req, res) => {
         userId
       });
 
-      // Update Current Stock
+      // =====================
+      // UPDATE CURRENT STOCK
+      // =====================
+
       await CurrentStock.updateOne(
         { userId, productId: product._id },
         { $inc: { quantity: -qty } },
         { session }
       );
 
-      // Update Opening Stock
+      const currentStock = stockMap[item.productId];
+
       const currentYear = new Date().getFullYear();
       const nextYear = currentYear + 1;
+
       const financialYear = `${currentYear}-${nextYear}`;
 
       let openingStock = await OpeningStockModel.findOne({
@@ -289,23 +297,45 @@ const createSalesForAccessory = async (req, res) => {
         financialYear
       }).session(session);
 
+      // =====================
+      // OPENING STOCK EXISTS
+      // =====================
+
       if (openingStock) {
 
         openingStock.totalSale += qty;
-        openingStock.closingStock -= qty;
+
+        const newClosing = openingStock.closingStock - qty;
+
+        openingStock.closingStock = newClosing < 0 ? 0 : newClosing;
 
         await openingStock.save({ session });
 
-      } else {
+      }
+
+      // =====================
+      // OPENING STOCK NOT EXISTS
+      // =====================
+
+      else {
+
+        const openingQty = currentStock;
+
+        const closingQty = openingQty - qty;
 
         await OpeningStockModel.create([{
+
           userId,
           productId: product._id,
+
           financialYear,
-          openingStock: 0,
+
+          openingStock: openingQty,
           totalPurchase: 0,
           totalSale: qty,
-          closingStock: -qty
+
+          closingStock: closingQty < 0 ? 0 : closingQty
+
         }], { session });
 
       }
@@ -323,9 +353,9 @@ const createSalesForAccessory = async (req, res) => {
 
     await saleDoc.save({ session });
 
-    // ==========================
-    // TRANSACTION ENTRY (INCOME)
-    // ==========================
+    // =====================
+    // TRANSACTION ENTRY
+    // =====================
 
     const accessorySalesHead = await AccountHead.findOne({
       userId,
@@ -336,6 +366,7 @@ const createSalesForAccessory = async (req, res) => {
     if (accessorySalesHead) {
 
       await TransactionModel.create([{
+
         userId,
         accountHead: accessorySalesHead._id,
         amount: totalAmount,
@@ -343,6 +374,7 @@ const createSalesForAccessory = async (req, res) => {
         paymentMethod: paymentMethod || "CASH",
         note: `Accessory sale invoice ${invoiceNumber}`,
         transactionDate: new Date()
+
       }], { session });
 
     }
@@ -359,7 +391,9 @@ const createSalesForAccessory = async (req, res) => {
       }
     });
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     await session.abortTransaction();
     session.endSession();
@@ -489,5 +523,204 @@ const getSalesList = async (req, res) => {
   }
 };
 
+const generateSalesInvoice = async (req, res) => {
+  try {
 
-module.exports = { createShiftWiseSales, createSalesForAccessory, getSalesList }
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+    const saleId = new mongoose.Types.ObjectId(req.params.id);
+
+    const pipeline = [
+
+      {
+        $match: {
+          _id: saleId,
+          userId
+        }
+      },
+
+      // SHIFT
+      {
+        $lookup: {
+          from: "shifts",
+          localField: "shiftId",
+          foreignField: "_id",
+          as: "shift"
+        }
+      },
+      { $unwind: { path: "$shift", preserveNullAndEmptyArrays: true } },
+
+      // WORKER
+      {
+        $lookup: {
+          from: "workers",
+          localField: "shift.workerId",
+          foreignField: "_id",
+          as: "worker"
+        }
+      },
+      { $unwind: { path: "$worker", preserveNullAndEmptyArrays: true } },
+
+      // SALE ITEMS
+      {
+        $lookup: {
+          from: "saleitems",
+          let: { saleId: "$_id" },
+          pipeline: [
+
+            {
+              $match: {
+                $expr: { $eq: ["$saleId", "$$saleId"] }
+              }
+            },
+
+            // PRODUCT
+            {
+              $lookup: {
+                from: "products",
+                localField: "productId",
+                foreignField: "_id",
+                as: "product"
+              }
+            },
+            { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+
+            // NOZZLE
+            {
+              $lookup: {
+                from: "nozzles",
+                localField: "nozzleId",
+                foreignField: "_id",
+                as: "nozzle"
+              }
+            },
+            { $unwind: { path: "$nozzle", preserveNullAndEmptyArrays: true } },
+
+            // AMOUNT CALCULATION
+            {
+              $addFields: {
+                amount: {
+                  $cond: [
+                    { $gt: ["$litres", 0] },
+                    { $multiply: ["$litres", "$pricePerLitre"] },
+                    { $multiply: ["$qty", "$price"] }
+                  ]
+                }
+              }
+            },
+
+            {
+              $project: {
+                productName: "$product.name",
+                productType: "$product.type",
+
+                qty: 1,
+                litres: 1,
+
+                price: 1,
+                pricePerLitre: 1,
+
+                amount: 1,
+
+                nozzleNumber: "$nozzle.nozzleNumber"
+              }
+            }
+
+          ],
+          as: "items"
+        }
+      },
+
+      {
+        $addFields: {
+          workerTotalSale: { $sum: "$items.amount" }
+        }
+      },
+
+      {
+        $project: {
+
+          invoiceNumber: 1,
+          createdAt: 1,
+
+          workerId: "$worker._id",
+
+          worker: {
+            name: "$worker.name",
+            phone: "$worker.phone",
+            workerType: "$worker.workerType"
+          },
+
+          shiftStart: "$shift.shiftStart",
+          shiftEnd: "$shift.shiftEnd",
+
+          workerTotalSale: 1,
+
+          items: 1
+        }
+      }
+
+    ];
+
+    const result = await SalesModel.aggregate(pipeline);
+
+    if (!result.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Sales not found"
+      });
+    }
+
+    const sale = result[0];
+
+    // =========================
+    // RENDER EJS TEMPLATE
+    // =========================
+
+    const html = await ejs.renderFile(
+      path.join(__dirname, "../views/salesDetails.ejs"),
+      { sale }
+    );
+
+    // =========================
+    // GENERATE PDF
+    // =========================
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      executablePath: process.env.CHROME_PATH || undefined
+    });
+
+    const page = await browser.newPage();
+
+    await page.setContent(html, {
+      waitUntil: "networkidle0"
+    });
+
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true
+    });
+
+    await browser.close();
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename=invoice-${sale.invoiceNumber}.pdf`
+    });
+
+    res.send(pdf);
+
+  } catch (error) {
+
+    console.error("Generate Sales Invoice Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+
+  }
+};
+
+
+module.exports = { createShiftWiseSales, createSalesForAccessory, getSalesList, generateSalesInvoice }

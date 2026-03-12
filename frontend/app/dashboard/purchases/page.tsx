@@ -154,6 +154,20 @@ function Page() {
     })();
   };
 
+  const handleViewInvoice = (rowData: any) => {
+    try {
+      // Get the base URL from axios instance or use default
+      const baseURL = axiosInstance.defaults.baseURL || "http://localhost:8090";
+      const invoiceUrl = `${baseURL}/api/purchase/generate-purchase-invoice/${rowData._id}`;
+
+      // Open PDF in new tab
+      window.open(invoiceUrl, '_blank');
+      toast.success('Opening invoice in new tab...');
+    } catch (err: any) {
+      toast.error('Failed to open invoice');
+    }
+  };
+
   /* ================= COLUMN TEMPLATES ================= */
   const invoiceTemplate = (rowData: any) => (
     <div className="flex items-center gap-2">
@@ -272,10 +286,10 @@ function Page() {
 
   const menuModel = [
     {
-      label: "View Details",
-      icon: "pi pi-eye",
+      label: "View Invoice (PDF)",
+      icon: "pi pi-file-pdf",
       command: () => {
-        if (selectedPurchase) handleViewDetails(selectedPurchase);
+        if (selectedPurchase) handleViewInvoice(selectedPurchase);
       },
     },
     {

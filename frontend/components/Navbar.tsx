@@ -6,6 +6,8 @@ import { Badge } from "primereact/badge";
 import { Button } from "primereact/button";
 import { Menu } from "primereact/menu";
 import type { MenuItem } from "primereact/menuitem";
+import axiosInstance from "@/service/axios.service";
+import { toast } from "react-toastify";
 
 
 
@@ -57,6 +59,38 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
                 ? "Manager"
                 : "Cashier";
 
+    // 🔹 Logout handler
+    const handleLogout = async () => {
+        try {
+            // Call logout API
+            await axiosInstance.post("/api/login/logout");
+
+            // Remove token from localStorage
+            localStorage.removeItem("login-token");
+
+            // Remove token from cookies
+            document.cookie = "login-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
+            // Show success message
+            toast.success("Logged out successfully");
+
+            // Redirect to login page
+            setTimeout(() => {
+                window.location.href = "/login";
+            }, 500);
+        } catch (error: any) {
+            console.error("Logout error:", error);
+            
+            // Even if API fails, clear local data and redirect
+            localStorage.removeItem("login-token");
+            document.cookie = "login-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            
+            toast.error("Logout failed, but clearing session");
+            setTimeout(() => {
+                window.location.href = "/login";
+            }, 500);
+        }
+    };
 
     const userMenuItems: MenuItem[] = [
         {
@@ -78,9 +112,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
         {
             label: "Log out",
             icon: "pi pi-sign-out",
-            command: () => {
-                window.location.href = `${basePath}/logout`;
-            },
+            command: handleLogout,
         },
     ];
 

@@ -1,220 +1,384 @@
 const mongoose = require("mongoose");
+
 const User = require("../model/user.model");
 const Worker = require("../model/worker.model");
 const Product = require("../model/product.model");
 const Tank = require("../model/tank.model");
 const Nozzle = require("../model/nozzel.model");
 const Supplier = require("../model/supplier.model");
+
 const CurrentStock = require("../model/currentStock.model");
+
 const { PurchaseModel } = require("../model/purchase.model");
-// const SaleModel = require("../model/sale.model");
+const SalesModel = require("../model/sales.model");
+const TransactionModel = require("../model/transaction.model");
 
 const getDashboard = async (req, res) => {
+
     try {
+
         const userId = req.user?._id;
         const role = req.user?.role;
 
         if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
 
         const objectUserId = new mongoose.Types.ObjectId(userId);
 
+        // ======================
+        // DATE FILTERS
+        // ======================
+
         const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        todayStart.setHours(0,0,0,0);
 
         const monthStart = new Date();
         monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
+        monthStart.setHours(0,0,0,0);
 
-        const response = {};
+        // ======================
+        // TOTAL COUNTS
+        // ======================
 
-        // ===================== ADMIN DASHBOARD =====================
-        if (role === "ADMIN") {
-            const [
-                totalUsers,
-                totalWorkers,
-                totalProducts,
-                totalTanks,
-                totalNozzles,
-                totalSuppliers,
-                totalPurchases,
-                purchaseSummary,
-                stockSummary,
-                recentPurchases,
-                todayPurchaseAgg,
-                monthlyPurchaseAgg
-            ] = await Promise.all([
+        const countsPromise = Promise.all([
 
-                User.countDocuments({ createdBy: userId }),
-                Worker.countDocuments({ createdBy: userId }),
-                Product.countDocuments({ userId }),
-                Tank.countDocuments({ userId }),
-                Nozzle.countDocuments({ userId }),
+            User.countDocuments({ createdBy: userId }),
+            Worker.countDocuments({ createdBy: userId }),
+            Product.countDocuments({ userId }),
+            Tank.countDocuments({ userId }),
+            Nozzle.countDocuments({ userId }),
+            Supplier.countDocuments({ userId })
 
-                // ⚡ FIXED Suppliers
-                Supplier.countDocuments({ userId }),
+        ]);
 
-                PurchaseModel.countDocuments({ createdBy: userId }),
+        // ======================
+        // SALES SUMMARY
+        // ======================
 
-                // Total Purchase Aggregation
-                PurchaseModel.aggregate([
-                    { $match: { createdBy: objectUserId } },
-                    {
-                        $group: {
-                            _id: null,
-                            totalAmount: { $sum: "$totalAmount" },
-                            totalPaid: { $sum: "$paidAmount" },
-                            totalDue: { $sum: "$dueAmount" }
-                        }
-                    }
-                ]),
+        const salesSummaryPromise = SalesModel.aggregate([
 
-                // Total Stock Quantity
-                CurrentStock.aggregate([
-                    { $match: { userId: objectUserId } },
-                    { $group: { _id: null, totalQuantity: { $sum: "$quantity" } } }
-                ]),
+            { $match: { userId: objectUserId } },
 
-                // Recent Purchases with Products & Supplier
-                PurchaseModel.aggregate([
-                    { $match: { createdBy: objectUserId } },
-                    { $sort: { createdAt: -1 } },
-                    { $limit: 5 },
-
-                    {
-                        $lookup: {
-                            from: "purchaseitems",
-                            localField: "_id",
-                            foreignField: "purchaseId",
-                            as: "items"
-                        }
-                    },
-
-                    {
-                        $lookup: {
-                            from: "suppliers",
-                            localField: "supplierId",
-                            foreignField: "_id",
-                            as: "supplier"
-                        }
-                    },
-                    { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } },
-
-                    {
-                        $project: {
-                            invoiceNo: 1,
-                            purchaseDate: 1,
-                            totalAmount: 1,
-                            paymentStatus: 1,
-                            supplierName: "$supplier.name",
-                            products: {
-                                $map: {
-                                    input: "$items",
-                                    as: "item",
-                                    in: {
-                                        productId: "$$item.productId",
-                                        quantity: "$$item.quantity",
-                                        costPrice: "$$item.costPrice",
-                                        total: "$$item.total"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                ]),
-
-                // Today's Purchase Amount
-                PurchaseModel.aggregate([
-                    { $match: { createdBy: objectUserId, purchaseDate: { $gte: todayStart } } },
-                    { $group: { _id: null, total: { $sum: "$totalAmount" } } }
-                ]),
-
-                // Monthly Purchase Amount
-                PurchaseModel.aggregate([
-                    { $match: { createdBy: objectUserId, purchaseDate: { $gte: monthStart } } },
-                    { $group: { _id: null, total: { $sum: "$totalAmount" } } }
-                ])
-            ]);
-
-            response.admin = {
-                totals: {
-                    totalUsers,
-                    totalWorkers,
-                    totalProducts,
-                    totalTanks,
-                    totalNozzles,
-                    totalSuppliers,
-                    totalPurchases,
-
-                    totalPurchaseAmount: purchaseSummary?.[0]?.totalAmount || 0,
-                    totalPaidAmount: purchaseSummary?.[0]?.totalPaid || 0,
-                    totalDueAmount: purchaseSummary?.[0]?.totalDue || 0,
-
-                    totalStockQuantity: stockSummary?.[0]?.totalQuantity || 0,
-
-                    todayPurchaseAmount: todayPurchaseAgg?.[0]?.total || 0,
-                    monthlyPurchaseAmount: monthlyPurchaseAgg?.[0]?.total || 0
-                },
-
-                recentPurchases
-            };
-        }
-
-        // ===================== MANAGER DASHBOARD =====================
-        if (role === "MANAGER") {
-            const [
-                totalWorkers,
-                totalProducts,
-                totalTanks,
-                totalPurchases,
-                recentPurchases
-            ] = await Promise.all([
-                Worker.countDocuments({ createdBy: userId }),
-                Product.countDocuments({ userId }),
-                Tank.countDocuments({ userId }),
-                PurchaseModel.countDocuments({ createdBy: userId }),
-
-                PurchaseModel.find({ createdBy: userId })
-                    .sort({ createdAt: -1 })
-                    .limit(5)
-                    .select("invoiceNo totalAmount purchaseDate")
-            ]);
-
-            response.manager = { totalWorkers, totalProducts, totalTanks, totalPurchases, recentPurchases };
-        }
-
-        // ===================== ACCOUNTANT DASHBOARD =====================
-        if (role === "ACCOUNTANT") {
-            const purchaseSummary = await PurchaseModel.aggregate([
-                { $match: { createdBy: objectUserId } },
-                {
-                    $group: {
-                        _id: "$paymentStatus",
-                        totalAmount: { $sum: "$totalAmount" }
-                    }
+            {
+                $group: {
+                    _id: null,
+                    totalSales: { $sum: "$totalAmount" },
+                    totalLitres: { $sum: "$totalLitres" },
+                    totalQty: { $sum: "$totalQty" }
                 }
-            ]);
+            }
 
-            response.accountant = purchaseSummary;
-        }
+        ]);
 
-        // ===================== CASHIER DASHBOARD =====================
-        if (role === "CASHIER") {
-            const [totalNozzles, totalWorkers] = await Promise.all([
-                Nozzle.countDocuments({ userId }),
-                Worker.countDocuments({ createdBy: userId })
-            ]);
+        const todaySalesPromise = SalesModel.aggregate([
 
-            response.cashier = { totalNozzles, totalWorkers, shift: req.user.shiftType };
-        }
+            {
+                $match: {
+                    userId: objectUserId,
+                    createdAt: { $gte: todayStart }
+                }
+            },
 
-        return res.status(200).json({ success: true, role, data: response });
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: "$totalAmount" }
+                }
+            }
+
+        ]);
+
+        const monthlySalesPromise = SalesModel.aggregate([
+
+            {
+                $match: {
+                    userId: objectUserId,
+                    createdAt: { $gte: monthStart }
+                }
+            },
+
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: "$totalAmount" }
+                }
+            }
+
+        ]);
+
+        // ======================
+        // PURCHASE SUMMARY
+        // ======================
+
+        const purchaseSummaryPromise = PurchaseModel.aggregate([
+
+            { $match: { createdBy: objectUserId } },
+
+            {
+                $group: {
+                    _id: null,
+                    totalPurchase: { $sum: "$totalAmount" },
+                    totalPaid: { $sum: "$paidAmount" },
+                    totalDue: { $sum: "$dueAmount" }
+                }
+            }
+
+        ]);
+
+        const todayPurchasePromise = PurchaseModel.aggregate([
+
+            {
+                $match: {
+                    createdBy: objectUserId,
+                    purchaseDate: { $gte: todayStart }
+                }
+            },
+
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: "$totalAmount" }
+                }
+            }
+
+        ]);
+
+        const monthlyPurchasePromise = PurchaseModel.aggregate([
+
+            {
+                $match: {
+                    createdBy: objectUserId,
+                    purchaseDate: { $gte: monthStart }
+                }
+            },
+
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: "$totalAmount" }
+                }
+            }
+
+        ]);
+
+        // ======================
+        // STOCK SUMMARY
+        // ======================
+
+        const stockSummaryPromise = CurrentStock.aggregate([
+
+            { $match: { userId: objectUserId } },
+
+            {
+                $group: {
+                    _id: null,
+                    totalStock: { $sum: "$quantity" }
+                }
+            }
+
+        ]);
+
+        // ======================
+        // INCOME EXPENSE
+        // ======================
+
+        const transactionSummaryPromise = TransactionModel.aggregate([
+
+            { $match: { userId: objectUserId } },
+
+            {
+                $group: {
+                    _id: "$type",
+                    total: { $sum: "$amount" }
+                }
+            }
+
+        ]);
+
+        // ======================
+        // RECENT SALES
+        // ======================
+
+        const recentSalesPromise = SalesModel.aggregate([
+
+            { $match: { userId: objectUserId } },
+
+            { $sort: { createdAt: -1 } },
+
+            { $limit: 5 },
+
+            {
+                $project: {
+                    invoiceNumber: 1,
+                    totalAmount: 1,
+                    totalLitres: 1,
+                    createdAt: 1
+                }
+            }
+
+        ]);
+
+        // ======================
+        // RECENT PURCHASES
+        // ======================
+
+        const recentPurchasesPromise = PurchaseModel.aggregate([
+
+            { $match: { createdBy: objectUserId } },
+
+            { $sort: { createdAt: -1 } },
+
+            { $limit: 5 },
+
+            {
+                $lookup: {
+                    from: "suppliers",
+                    localField: "supplierId",
+                    foreignField: "_id",
+                    as: "supplier"
+                }
+            },
+
+            { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } },
+
+            {
+                $project: {
+                    invoiceNo: 1,
+                    totalAmount: 1,
+                    purchaseDate: 1,
+                    supplierName: "$supplier.name"
+                }
+            }
+
+        ]);
+
+        // ======================
+        // EXECUTE ALL
+        // ======================
+
+        const [
+
+            counts,
+            salesSummary,
+            todaySales,
+            monthlySales,
+            purchaseSummary,
+            todayPurchase,
+            monthlyPurchase,
+            stockSummary,
+            transactionSummary,
+            recentSales,
+            recentPurchases
+
+        ] = await Promise.all([
+
+            countsPromise,
+            salesSummaryPromise,
+            todaySalesPromise,
+            monthlySalesPromise,
+            purchaseSummaryPromise,
+            todayPurchasePromise,
+            monthlyPurchasePromise,
+            stockSummaryPromise,
+            transactionSummaryPromise,
+            recentSalesPromise,
+            recentPurchasesPromise
+
+        ]);
+
+        // ======================
+        // FORMAT TRANSACTION
+        // ======================
+
+        let income = 0;
+        let expense = 0;
+
+        transactionSummary.forEach(t => {
+
+            if (t._id === "INCOME") income = t.total;
+            if (t._id === "EXPENSE") expense = t.total;
+
+        });
+
+        // ======================
+        // FINAL RESPONSE
+        // ======================
+
+        const dashboard = {
+
+            totals: {
+
+                totalUsers: counts[0],
+                totalWorkers: counts[1],
+                totalProducts: counts[2],
+                totalTanks: counts[3],
+                totalNozzles: counts[4],
+                totalSuppliers: counts[5]
+
+            },
+
+            sales: {
+
+                totalSalesAmount: salesSummary?.[0]?.totalSales || 0,
+                totalLitresSold: salesSummary?.[0]?.totalLitres || 0,
+                totalProductsSold: salesSummary?.[0]?.totalQty || 0,
+
+                todaySales: todaySales?.[0]?.total || 0,
+                monthlySales: monthlySales?.[0]?.total || 0
+
+            },
+
+            purchase: {
+
+                totalPurchaseAmount: purchaseSummary?.[0]?.totalPurchase || 0,
+                totalPaid: purchaseSummary?.[0]?.totalPaid || 0,
+                totalDue: purchaseSummary?.[0]?.totalDue || 0,
+
+                todayPurchase: todayPurchase?.[0]?.total || 0,
+                monthlyPurchase: monthlyPurchase?.[0]?.total || 0
+
+            },
+
+            stock: {
+
+                totalStockQuantity: stockSummary?.[0]?.totalStock || 0
+
+            },
+
+            finance: {
+
+                totalIncome: income,
+                totalExpense: expense,
+                profit: income - expense
+
+            },
+
+            recentSales,
+            recentPurchases
+
+        };
+
+        return res.status(200).json({
+            success: true,
+            role,
+            data: dashboard
+        });
 
     } catch (error) {
+
         console.error("Dashboard Error:", error);
-        return res.status(500).json({ success: false, message: error.message });
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
     }
+
 };
 
 module.exports = { getDashboard };

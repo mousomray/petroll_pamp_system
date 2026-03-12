@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const puppeteer = require("puppeteer-core");
 const { PurchaseModel, PurchaseItemModel } = require("../model/purchase.model");
 const Product = require("../model/product.model");
 const Tank = require("../model/tank.model");
@@ -7,6 +8,8 @@ const OpningStockModle = require("../model/opningStock.model");
 const AccountHead = require("../model/accountHead.model");
 const TransactionModel = require("../model/transaction.model");
 const { createPurchaseSchema } = require("../schema/purchase.schema");
+const path = require("path");
+const ejs = require("ejs");
 
 const getFinancialYear = (date) => {
     const d = new Date(date);
@@ -877,9 +880,165 @@ const updatePurchase = async (req, res) => {
     }
 };
 
+const generatePurchaseInvoice = async (req, res) => {
+    try {
+        const userId = new mongoose.Types.ObjectId(req.user._id);
+        const purchaseId = new mongoose.Types.ObjectId(req.params.id);
+        const pipeline = [
+
+            {
+                $match: {
+                    _id: purchaseId,
+                    userId
+                }
+            },
+
+            {
+                $lookup: {
+                    from: "suppliers",
+                    localField: "supplierId",
+                    foreignField: "_id",
+                    as: "supplier"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$supplier",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "purchaseitems",
+                    let: { purchaseId: "$_id" },
+                    pipeline: [
+
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$purchaseId", "$$purchaseId"]
+                                }
+                            }
+                        },
+
+                        // PRODUCT JOIN
+                        {
+                            $lookup: {
+                                from: "products",
+                                localField: "productId",
+                                foreignField: "_id",
+                                as: "product"
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$product",
+                                preserveNullAndEmptyArrays: true
+                            }
+                        },
+
+                        // TANK JOIN
+                        {
+                            $lookup: {
+                                from: "tanks",
+                                localField: "tankId",
+                                foreignField: "_id",
+                                as: "tank"
+                            }
+                        },
+                        {
+                            $unwind: {
+                                path: "$tank",
+                                preserveNullAndEmptyArrays: true
+                            }
+                        },
+
+                        // FINAL ITEM SHAPE
+                        {
+                            $project: {
+
+                                productName: "$product.name",
+                                productType: "$product.type",
+                                unit: "$product.unit",
+
+                                quantity: 1,
+                                costPrice: 1,
+
+                                cgstPercent: 1,
+                                sgstPercent: 1,
+                                igstPercent: 1,
+
+                                cgstAmount: 1,
+                                sgstAmount: 1,
+                                igstAmount: 1,
+
+                                taxAmount: 1,
+                                total: 1,
+
+                                tankName: "$tank.name"
+                            }
+                        }
+
+                    ],
+                    as: "items"
+                }
+            }
+
+        ];
+
+        const result = await PurchaseModel.aggregate(pipeline);
+
+        if (!result.length) {
+            return res.status(404).json({
+                success: false,
+                message: "Purchase not found"
+            });
+        }
+
+        const purchase = result[0];
+
+        const html = await ejs.renderFile(
+            path.join(__dirname, "../views/purchaseDetails.ejs"),
+            { purchase }
+        );
+
+        const browser = await puppeteer.launch({
+            headless: true,
+            executablePath: process.env.CHROME_PATH
+        });
+
+        const page = await browser.newPage();
+
+        await page.setContent(html, { waitUntil: "networkidle0" });
+
+        const pdf = await page.pdf({
+            format: "A4",
+            printBackground: true
+        });
+
+        await browser.close();
+
+        res.set({
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename=purchase-${purchase.invoiceNo}.pdf`
+        });
+
+        res.send(pdf);
+
+    } catch (error) {
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+};
+
 module.exports = {
     createPurchase,
     listPurchases,
     getPurchaseDetails,
-    updatePurchase
+    updatePurchase,
+    generatePurchaseInvoice
 };

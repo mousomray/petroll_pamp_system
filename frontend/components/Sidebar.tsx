@@ -86,6 +86,16 @@ const Sidebar: React.FC<SidebarProps> = ({ role, user }) => {
 
   const adminSections: Section[] = [
     {
+      title: "Main",
+      items: [
+        {
+          label: "Dashboard",
+          icon: "pi-home",
+          href: "/dashboard",
+        },
+      ],
+    },
+    {
       title: "Management",
       items: [
         {
