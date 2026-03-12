@@ -81,9 +81,11 @@ const allAdmin = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
+
     const parsedData = createUserSchema.parse(req.body);
 
     const existingUser = await UserModel.findOne({ email: parsedData.email });
+
     if (existingUser) {
       return res.status(400).json({
         message: "User already exists with this email",
@@ -93,8 +95,62 @@ const createUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(parsedData.password, salt);
 
-    const user = new UserModel({ ...parsedData, password: hashedPassword });
+    const user = new UserModel({
+      ...parsedData,
+      password: hashedPassword
+    });
+
     await user.save();
+
+    // ==============================
+    // AUTO CREATE ACCOUNTING HEADS
+    // ==============================
+
+    const userId = req.user._id;
+
+    const defaultHeads = [
+
+      {
+        userId,
+        name: "Fuel Purchase",
+        type: "EXPENSE"
+      },
+
+      {
+        userId,
+        name: "Fuel Sales",
+        type: "INCOME"
+      },
+
+      {
+        userId,
+        name: "Accessory Expenses",
+        type: "EXPENSE"
+      },
+
+      {
+        userId,
+        name: "Accessory Sales",
+        type: "INCOME"
+      }
+
+    ];
+
+    // Check existing heads to avoid duplicates
+    const existingHeads = await AccountHead.find({
+      userId,
+      name: { $in: defaultHeads.map(h => h.name) }
+    });
+
+    const existingNames = existingHeads.map(h => h.name);
+
+    const headsToInsert = defaultHeads.filter(
+      head => !existingNames.includes(head.name)
+    );
+
+    if (headsToInsert.length > 0) {
+      await AccountHead.insertMany(headsToInsert);
+    }
 
     try {
       await sendPasswordEmail(parsedData.email, parsedData.password);
@@ -106,7 +162,9 @@ const createUser = async (req, res) => {
       message: `Hii ${parsedData.name}, you are registered as ${parsedData.role}`,
       user: { ...user.toObject(), password: undefined },
     });
+
   } catch (error) {
+
     if (error.name === "ZodError") {
       return res.status(400).json({
         message: "Validation failed",
@@ -121,7 +179,11 @@ const createUser = async (req, res) => {
     }
 
     console.error("User creation error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+
   }
 };
 

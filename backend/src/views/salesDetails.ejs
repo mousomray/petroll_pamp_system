@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Invoice - <%= sale.invoiceNumber %></title>
+    <title>Sales Invoice - <%= sale.invoiceNumber %>
+    </title>
     <style>
         * {
             margin: 0;
@@ -24,7 +26,7 @@
             margin: 0 auto;
             background: white;
             padding: 40px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
         }
 
         /* Header Section */
@@ -317,6 +319,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="invoice-container">
         <!-- Header -->
@@ -324,24 +327,24 @@
             <div class="company-info">
                 <div class="company-name">Petrol Pump Operations</div>
                 <div class="company-tagline">Fuel Your Journey</div>
-                <div class="company-details">
-                    <p><strong>Address:</strong> Your Business Address Here</p>
-                    <p><strong>Phone:</strong> +91 XXXXX XXXXX</p>
-                    <p><strong>Email:</strong> info@petrolpump.com</p>
-                    <p><strong>GSTIN:</strong> XXGSTXXXXXXX</p>
-                </div>
             </div>
             <div class="invoice-title-section">
                 <div class="invoice-title">SALES INVOICE</div>
-                <div class="invoice-number">Invoice #<%= sale.invoiceNumber %></div>
+                <div class="invoice-number">Invoice #<%= sale.invoiceNumber %>
+                </div>
                 <div class="invoice-date">
-                    <strong>Date:</strong> <%= sale.createdAt ? new Date(sale.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) %>
+                    <strong>Date:</strong>
+                    <%= sale.createdAt ? new Date(sale.createdAt).toLocaleDateString('en-IN', { day: '2-digit' ,
+                        month: 'short' , year: 'numeric' }) : new Date().toLocaleDateString('en-IN', { day: '2-digit' ,
+                        month: 'short' , year: 'numeric' }) %>
                 </div>
                 <% if (sale.createdAt) { %>
-                <div class="invoice-date">
-                    <strong>Time:</strong> <%= new Date(sale.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) %>
-                </div>
-                <% } %>
+                    <div class="invoice-date">
+                        <strong>Time:</strong>
+                        <%= new Date(sale.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit' , minute: '2-digit'
+                            }) %>
+                    </div>
+                    <% } %>
             </div>
         </div>
 
@@ -350,32 +353,49 @@
             <div class="info-box">
                 <h3>Worker Information</h3>
                 <% if (sale.worker) { %>
-                <p><strong>Worker Name:</strong> <%= sale.worker.name || 'N/A' %></p>
-                <% if (sale.worker.phone) { %>
-                <p><strong>Phone:</strong> <%= sale.worker.phone %></p>
-                <% } %>
-                <% if (sale.worker.workerType) { %>
-                <p><strong>Type:</strong> <%= sale.worker.workerType %></p>
-                <% } %>
-                <% } else { %>
-                <p><strong>Worker:</strong> N/A</p>
-                <% } %>
+                    <p><strong>Worker Name:</strong>
+                        <%= sale.worker.name || 'N/A' %>
+                    </p>
+                    <% if (sale.worker.phone) { %>
+                        <p><strong>Phone:</strong>
+                            <%= sale.worker.phone %>
+                        </p>
+                        <% } %>
+                            <% if (sale.worker.workerType) { %>
+                                <p><strong>Type:</strong>
+                                    <%= sale.worker.workerType %>
+                                </p>
+                                <% } %>
+                                    <% } else { %>
+                                        <p><strong>Worker:</strong> N/A</p>
+                                        <% } %>
             </div>
 
             <div class="info-box">
                 <h3>Shift Information</h3>
                 <% if (sale.shiftStart && sale.shiftEnd) { %>
-                <p><strong>Shift Start:</strong> <%= new Date(sale.shiftStart).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }) %></p>
-                <p><strong>Shift End:</strong> <%= new Date(sale.shiftEnd).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }) %></p>
-                <% } else if (sale.shiftStart) { %>
-                <p><strong>Shift Start:</strong> <%= new Date(sale.shiftStart).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }) %></p>
-                <p><strong>Status:</strong> <span class="payment-status status-partial">In Progress</span></p>
-                <% } else { %>
-                <p><strong>Shift:</strong> N/A</p>
-                <% } %>
-                <% if (sale.workerTotalSale) { %>
-                <p><strong>Worker Total Sale:</strong> <span style="color: #16a34a; font-weight: 600;">₹<%= sale.workerTotalSale.toFixed(2) %></span></p>
-                <% } %>
+                    <p><strong>Shift Start:</strong>
+                        <%= new Date(sale.shiftStart).toLocaleString('en-IN', { hour: '2-digit' , minute: '2-digit' ,
+                            day: '2-digit' , month: 'short' }) %>
+                    </p>
+                    <p><strong>Shift End:</strong>
+                        <%= new Date(sale.shiftEnd).toLocaleString('en-IN', { hour: '2-digit' , minute: '2-digit' ,
+                            day: '2-digit' , month: 'short' }) %>
+                    </p>
+                    <% } else if (sale.shiftStart) { %>
+                        <p><strong>Shift Start:</strong>
+                            <%= new Date(sale.shiftStart).toLocaleString('en-IN', { hour: '2-digit' , minute: '2-digit'
+                                , day: '2-digit' , month: 'short' }) %>
+                        </p>
+                        <p><strong>Status:</strong> <span class="payment-status status-partial">In Progress</span></p>
+                        <% } else { %>
+                            <p><strong>Shift:</strong> N/A</p>
+                            <% } %>
+                                <% if (sale.workerTotalSale) { %>
+                                    <p><strong>Worker Total Sale:</strong> <span
+                                            style="color: #16a34a; font-weight: 600;">₹<%=
+                                                sale.workerTotalSale.toFixed(2) %></span></p>
+                                    <% } %>
             </div>
         </div>
 
@@ -384,40 +404,65 @@
             <thead>
                 <tr>
                     <th style="width: 5%;">#</th>
-                    <th style="width: 35%;">Product Details</th>
+                    <th style="width: 30%;">Product Details</th>
                     <th style="width: 12%;">Quantity</th>
-                    <th style="width: 12%;">Litres</th>
-                    <th style="width: 13%;">Price/Litre</th>
-                    <th style="width: 10%;">Unit Price</th>
+                    <th style="width: 12%;">Unit</th>
+                    <th style="width: 13%;">Rate</th>
+                    <th style="width: 15%;">Unit Price</th>
                     <th style="width: 13%;">Amount</th>
                 </tr>
             </thead>
             <tbody>
-                <% if (sale.items && sale.items.length > 0) { %>
-                    <% sale.items.forEach((item, index) => { %>
-                    <tr>
-                        <td><%= index + 1 %></td>
-                        <td>
-                            <div class="product-name"><%= item.productName || 'N/A' %></div>
-                            <div class="product-info">
-                                <%= item.productType || '' %>
-                                <% if (item.nozzleNumber) { %>
-                                <span class="nozzle-badge">Nozzle #<%= item.nozzleNumber %></span>
+                <% if (sale.items && sale.items.length> 0) { %>
+                    <% sale.items.forEach((item, index)=> { %>
+                        <% 
+                            // Determine if product is fuel-based or accessory
+                            const productType = (item.productType || '').toUpperCase();
+                            const isFuelProduct = productType === 'FUEL' || (item.litres && item.litres > 0);
+                            
+                            // Calculate litres for fuel products (litres field or qty field might contain litre value)
+                            const litresValue = item.litres || (isFuelProduct ? item.qty : 0);
+                            
+                            // Display unit based on product type
+                            const unitDisplay = isFuelProduct ? `${(litresValue || 0).toFixed(2)} L` : (item.unit || 'Pcs');
+                            
+                            // Display rate based on product type
+                            const rateDisplay = isFuelProduct ? `₹${(item.pricePerLitre || item.price || 0).toFixed(2)}/L` : `₹${(item.price || 0).toFixed(2)}`;
+                        %>
+                        <tr>
+                            <td>
+                                <%= index + 1 %>
+                            </td>
+                            <td>
+                                <div class="product-name">
+                                    <%= item.productName || 'N/A' %>
+                                </div>
+                                <div class="product-info">
+                                    <%= item.productType || '' %>
+                                        <% if (item.nozzleNumber) { %>
+                                            <span class="nozzle-badge">Nozzle #<%= item.nozzleNumber %></span>
+                                            <% } %>
+                                </div>
+                            </td>
+                            <td>
+                                <%= item.qty || 0 %>
+                            </td>
+                            <td>
+                                <%= unitDisplay %>
+                            </td>
+                            <td><%= rateDisplay %>
+                            </td>
+                            <td>₹<%= (item.price || 0).toFixed(2) %>
+                            </td>
+                            <td class="font-bold">₹<%= (item.amount || 0).toFixed(2) %>
+                            </td>
+                        </tr>
+                        <% }); %>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="7" class="text-center">No items found</td>
+                                </tr>
                                 <% } %>
-                            </div>
-                        </td>
-                        <td><%= item.qty || 0 %></td>
-                        <td><%= (item.litres || 0).toFixed(2) %> L</td>
-                        <td>₹<%= (item.pricePerLitre || 0).toFixed(2) %></td>
-                        <td>₹<%= (item.price || 0).toFixed(2) %></td>
-                        <td class="font-bold">₹<%= (item.amount || 0).toFixed(2) %></td>
-                    </tr>
-                    <% }); %>
-                <% } else { %>
-                    <tr>
-                        <td colspan="7" class="text-center">No items found</td>
-                    </tr>
-                <% } %>
             </tbody>
         </table>
 
@@ -426,16 +471,36 @@
             <div class="summary-box">
                 <div class="summary-row subtotal">
                     <span>Total Items</span>
-                    <span><%= sale.items?.length || 0 %></span>
+                    <span>
+                        <%= sale.items?.length || 0 %>
+                    </span>
                 </div>
                 <div class="summary-row subtotal">
                     <span>Total Quantity</span>
-                    <span><%= (sale.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0) %></span>
+                    <span>
+                        <%= (sale.items?.reduce((sum, item)=> sum + (item.qty || 0), 0) || 0) %>
+                    </span>
                 </div>
+                <% 
+                    // Calculate total litres from fuel items only
+                    const totalLitres = sale.items?.reduce((sum, item) => {
+                        const productType = (item.productType || '').toUpperCase();
+                        const isFuel = productType === 'FUEL' || (item.litres && item.litres > 0);
+                        if (isFuel) {
+                            return sum + (item.litres || item.qty || 0);
+                        }
+                        return sum;
+                    }, 0) || 0;
+                    
+                    if (totalLitres > 0) { 
+                %>
                 <div class="summary-row subtotal">
                     <span>Total Litres</span>
-                    <span><%= (sale.items?.reduce((sum, item) => sum + (item.litres || 0), 0) || 0).toFixed(2) %> L</span>
+                    <span>
+                        <%= totalLitres.toFixed(2) %> L
+                    </span>
                 </div>
+                <% } %>
                 <div class="summary-row total">
                     <span>TOTAL AMOUNT</span>
                     <span>₹<%= (sale.workerTotalSale || 0).toFixed(2) %></span>
@@ -445,16 +510,6 @@
 
         <!-- Footer -->
         <div class="invoice-footer">
-            <div class="notes-section">
-                <h4>Terms & Conditions</h4>
-                <p>
-                    1. Goods once sold will not be taken back or exchanged.<br>
-                    2. Please check fuel quantity before leaving the station.<br>
-                    3. All disputes are subject to local jurisdiction only.<br>
-                    4. This is a computer-generated invoice and does not require a signature.
-                </p>
-            </div>
-
             <div class="signature-section">
                 <div class="signature-box">
                     <div class="signature-line">Authorized Signature</div>
@@ -467,9 +522,12 @@
             <div class="footer-text">
                 <p>Thank you for choosing our services!</p>
                 <p>Drive Safe, Fuel Smart</p>
-                <p>Generated on <%= new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %></p>
+                <p>Generated on <%= new Date().toLocaleDateString('en-IN', { day: '2-digit' , month: 'short' ,
+                        year: 'numeric' , hour: '2-digit' , minute: '2-digit' }) %>
+                </p>
             </div>
         </div>
     </div>
 </body>
+
 </html>

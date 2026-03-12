@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Purchase Invoice - <%= purchase.invoiceNo %></title>
+    <title>Purchase Invoice - <%= purchase.invoiceNo %>
+    </title>
     <style>
         * {
             margin: 0;
@@ -24,7 +26,7 @@
             margin: 0 auto;
             background: white;
             padding: 40px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
         }
 
         /* Header Section */
@@ -312,6 +314,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="invoice-container">
         <!-- Header -->
@@ -319,18 +322,15 @@
             <div class="company-info">
                 <div class="company-name">Petrol Pump Operations</div>
                 <div class="company-tagline">Fuel Your Journey</div>
-                <div class="company-details">
-                    <p><strong>Address:</strong> Your Business Address Here</p>
-                    <p><strong>Phone:</strong> +91 XXXXX XXXXX</p>
-                    <p><strong>Email:</strong> info@petrolpump.com</p>
-                    <p><strong>GSTIN:</strong> XXGSTXXXXXXX</p>
-                </div>
             </div>
             <div class="invoice-title-section">
                 <div class="invoice-title">PURCHASE</div>
-                <div class="invoice-number">Invoice #<%= purchase.invoiceNo %></div>
+                <div class="invoice-number">Invoice #<%= purchase.invoiceNo %>
+                </div>
                 <div class="invoice-date">
-                    <strong>Date:</strong> <%= new Date(purchase.purchaseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) %>
+                    <strong>Date:</strong>
+                    <%= new Date(purchase.purchaseDate).toLocaleDateString('en-IN', { day: '2-digit' , month: 'short' ,
+                        year: 'numeric' }) %>
                 </div>
             </div>
         </div>
@@ -339,32 +339,47 @@
         <div class="info-section">
             <div class="info-box">
                 <h3>Supplier Details</h3>
-                <p><strong><%= purchase.supplier?.name || 'N/A' %></strong></p>
+                <p><strong>
+                        <%= purchase.supplier?.name || 'N/A' %>
+                    </strong></p>
                 <% if (purchase.supplier?.address) { %>
-                <p><%= purchase.supplier.address %></p>
-                <% } %>
-                <% if (purchase.supplier?.phone) { %>
-                <p><strong>Phone:</strong> <%= purchase.supplier.phone %></p>
-                <% } %>
-                <% if (purchase.supplier?.email) { %>
-                <p><strong>Email:</strong> <%= purchase.supplier.email %></p>
-                <% } %>
-                <% if (purchase.supplier?.gstin) { %>
-                <p><strong>GSTIN:</strong> <%= purchase.supplier.gstin %></p>
-                <% } %>
+                    <p>
+                        <%= purchase.supplier.address %>
+                    </p>
+                    <% } %>
+                        <% if (purchase.supplier?.phone) { %>
+                            <p><strong>Phone:</strong>
+                                <%= purchase.supplier.phone %>
+                            </p>
+                            <% } %>
+                                <% if (purchase.supplier?.email) { %>
+                                    <p><strong>Email:</strong>
+                                        <%= purchase.supplier.email %>
+                                    </p>
+                                    <% } %>
+                                        <% if (purchase.supplier?.gstin) { %>
+                                            <p><strong>GSTIN:</strong>
+                                                <%= purchase.supplier.gstin %>
+                                            </p>
+                                            <% } %>
             </div>
 
             <div class="info-box">
                 <h3>Payment Information</h3>
-                <p><strong>Payment Method:</strong> <%= purchase.paymentMethod || 'N/A' %></p>
-                <p><strong>Payment Status:</strong> 
+                <p><strong>Payment Method:</strong>
+                    <%= purchase.paymentMethod || 'N/A' %>
+                </p>
+                <p><strong>Payment Status:</strong>
                     <span class="payment-status status-<%= (purchase.paymentStatus || 'UNPAID').toLowerCase() %>">
                         <%= purchase.paymentStatus || 'UNPAID' %>
                     </span>
                 </p>
                 <% if (purchase.paymentDate) { %>
-                <p><strong>Payment Date:</strong> <%= new Date(purchase.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) %></p>
-                <% } %>
+                    <p><strong>Payment Date:</strong>
+                        <%= new Date(purchase.paymentDate).toLocaleDateString('en-IN', { day: '2-digit' , month: 'short'
+                            , year: 'numeric' }) %>
+                    </p>
+                    <% } %>
             </div>
         </div>
 
@@ -382,39 +397,50 @@
                 </tr>
             </thead>
             <tbody>
-                <% if (purchase.items && purchase.items.length > 0) { %>
-                    <% purchase.items.forEach((item, index) => { %>
-                    <tr>
-                        <td><%= index + 1 %></td>
-                        <td>
-                            <div class="product-name"><%= item.productName || 'N/A' %></div>
-                            <div class="product-info">
-                                <%= item.productType || '' %> 
-                                <% if (item.tankName) { %> | Tank: <%= item.tankName %><% } %>
-                            </div>
-                        </td>
-                        <td><%= item.quantity || 0 %> <%= item.unit || '' %></td>
-                        <td>₹<%= (item.costPrice || 0).toFixed(2) %></td>
-                        <td>
-                            <div class="tax-breakdown">
-                                <% if (item.cgstPercent > 0) { %>
-                                CGST: <%= item.cgstPercent %>%<br>
-                                SGST: <%= item.sgstPercent %>%
+                <% if (purchase.items && purchase.items.length> 0) { %>
+                    <% purchase.items.forEach((item, index)=> { %>
+                        <tr>
+                            <td>
+                                <%= index + 1 %>
+                            </td>
+                            <td>
+                                <div class="product-name">
+                                    <%= item.productName || 'N/A' %>
+                                </div>
+                                <div class="product-info">
+                                    <%= item.productType || '' %>
+                                        <% if (item.tankName) { %> | Tank: <%= item.tankName %>
+                                                <% } %>
+                                </div>
+                            </td>
+                            <td>
+                                <%= item.quantity || 0 %>
+                                    <%= item.unit || '' %>
+                            </td>
+                            <td>₹<%= (item.costPrice || 0).toFixed(2) %>
+                            </td>
+                            <td>
+                                <div class="tax-breakdown">
+                                    <% if (item.cgstPercent> 0) { %>
+                                        CGST: <%= item.cgstPercent %>%<br>
+                                            SGST: <%= item.sgstPercent %>%
+                                                <% } %>
+                                                    <% if (item.igstPercent> 0) { %>
+                                                        IGST: <%= item.igstPercent %>%
+                                                            <% } %>
+                                </div>
+                            </td>
+                            <td>₹<%= (item.taxAmount || 0).toFixed(2) %>
+                            </td>
+                            <td class="font-bold">₹<%= (item.total || 0).toFixed(2) %>
+                            </td>
+                        </tr>
+                        <% }); %>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="7" class="text-center">No items found</td>
+                                </tr>
                                 <% } %>
-                                <% if (item.igstPercent > 0) { %>
-                                IGST: <%= item.igstPercent %>%
-                                <% } %>
-                            </div>
-                        </td>
-                        <td>₹<%= (item.taxAmount || 0).toFixed(2) %></td>
-                        <td class="font-bold">₹<%= (item.total || 0).toFixed(2) %></td>
-                    </tr>
-                    <% }); %>
-                <% } else { %>
-                    <tr>
-                        <td colspan="7" class="text-center">No items found</td>
-                    </tr>
-                <% } %>
             </tbody>
         </table>
 
@@ -423,11 +449,13 @@
             <div class="summary-box">
                 <div class="summary-row subtotal">
                     <span>Subtotal</span>
-                    <span>₹<%= ((purchase.totalAmount || 0) - (purchase.items?.reduce((sum, item) => sum + (item.taxAmount || 0), 0) || 0)).toFixed(2) %></span>
+                    <span>₹<%= ((purchase.totalAmount || 0) - (purchase.items?.reduce((sum, item)=> sum +
+                            (item.taxAmount || 0), 0) || 0)).toFixed(2) %></span>
                 </div>
                 <div class="summary-row subtotal">
                     <span>Total Tax</span>
-                    <span>₹<%= (purchase.items?.reduce((sum, item) => sum + (item.taxAmount || 0), 0) || 0).toFixed(2) %></span>
+                    <span>₹<%= (purchase.items?.reduce((sum, item)=> sum + (item.taxAmount || 0), 0) || 0).toFixed(2)
+                            %></span>
                 </div>
                 <div class="summary-row total">
                     <span>TOTAL AMOUNT</span>
@@ -437,48 +465,43 @@
                     <span>Paid Amount</span>
                     <span>₹<%= (purchase.paidAmount || 0).toFixed(2) %></span>
                 </div>
-                <% if ((purchase.dueAmount || 0) > 0) { %>
-                <div class="summary-row due">
-                    <span>Due Amount</span>
-                    <span>₹<%= (purchase.dueAmount || 0).toFixed(2) %></span>
-                </div>
-                <% } %>
+                <% if ((purchase.dueAmount || 0)> 0) { %>
+                    <div class="summary-row due">
+                        <span>Due Amount</span>
+                        <span>₹<%= (purchase.dueAmount || 0).toFixed(2) %></span>
+                    </div>
+                    <% } %>
             </div>
         </div>
 
         <!-- Footer -->
         <div class="invoice-footer">
-            <div class="notes-section">
-                <h4>Terms & Conditions</h4>
-                <p>
-                    1. All payments should be made within 30 days of the invoice date.<br>
-                    2. Please quote the invoice number when making payments.<br>
-                    3. All disputes are subject to local jurisdiction only.<br>
-                    4. This is a computer-generated invoice and does not require a signature.
-                </p>
-            </div>
-
             <% if (purchase.note) { %>
-            <div class="notes-section">
-                <h4>Notes</h4>
-                <p><%= purchase.note %></p>
-            </div>
-            <% } %>
-
-            <div class="signature-section">
-                <div class="signature-box">
-                    <div class="signature-line">Authorized Signature</div>
+                <div class="notes-section">
+                    <h4>Notes</h4>
+                    <p>
+                        <%= purchase.note %>
+                    </p>
                 </div>
-                <div class="signature-box">
-                    <div class="signature-line">Supplier Signature</div>
-                </div>
-            </div>
+                <% } %>
 
-            <div class="footer-text">
-                <p>Thank you for your business!</p>
-                <p>Generated on <%= new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) %></p>
-            </div>
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <div class="signature-line">Authorized Signature</div>
+                        </div>
+                        <div class="signature-box">
+                            <div class="signature-line">Supplier Signature</div>
+                        </div>
+                    </div>
+
+                    <div class="footer-text">
+                        <p>Thank you for your business!</p>
+                        <p>Generated on <%= new Date().toLocaleDateString('en-IN', { day: '2-digit' , month: 'short' ,
+                                year: 'numeric' , hour: '2-digit' , minute: '2-digit' }) %>
+                        </p>
+                    </div>
         </div>
     </div>
 </body>
+
 </html>
