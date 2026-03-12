@@ -62,8 +62,8 @@ app.use("/api/account-head", accountHeadRoutes)
 app.use("/api/transaction", transactionRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 
-const port = process.env.PORT
+const port = process.env.PORT || 8090
 
-app.listen(port, () => {
-    console.log(`server is runing ${port}`)
+app.listen(port, "0.0.0.0", () => {
+    console.log(`Server is running on port ${port}`)
 })
