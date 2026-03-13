@@ -50,12 +50,20 @@ function Page() {
   // search input (immediate) and debouncedSearch (sent to server)
   const [searchInput, setSearchInput] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  
+  // filters for year and month
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  
+  // available years (current year and previous years)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   /* ================= FETCH PURCHASES (server-side pagination) ================= */
   // fetch when page, rows or debounced search change
   useEffect(() => {
     purchaseDataGet();
-  }, [pagination.page, pagination.rows, debouncedSearch]);
+  }, [pagination.page, pagination.rows, debouncedSearch, selectedYear, selectedMonth]);
 
   // debounce searchInput -> debouncedSearch
   useEffect(() => {
@@ -66,7 +74,7 @@ function Page() {
   // when debounced search changes reset to first page
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
-  }, [debouncedSearch]);
+  }, [debouncedSearch, selectedYear, selectedMonth]);
 
   const purchaseDataGet = async () => {
     try {
@@ -76,6 +84,8 @@ function Page() {
           page: pagination.page,
           limit: pagination.rows,
           ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          ...(selectedYear ? { year: selectedYear } : {}),
+          ...(selectedMonth ? { month: selectedMonth } : {}),
         },
       });
 
@@ -165,6 +175,42 @@ function Page() {
       toast.success('Opening invoice in new tab...');
     } catch (err: any) {
       toast.error('Failed to open invoice');
+    }
+  };
+
+  const handleViewReport = async () => {
+    try {
+      setLoading(true);
+
+      // Open a blank window immediately to avoid popup blockers
+      const newWindow = window.open();
+
+      const response = await axiosInstance.get("/api/purchase/list-purchases", {
+        params: {
+          pdf: "true",
+          ...(selectedYear ? { year: selectedYear } : {}),
+          ...(selectedMonth ? { month: selectedMonth } : {}),
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        },
+        responseType: "blob",
+      });
+
+      // Create blob URL and navigate the new window to it (will render PDF in-browser)
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+
+      if (newWindow) {
+        newWindow.location.href = url;
+      } else {
+        // Fallback in case popup blocked
+        window.open(url, "_blank");
+      }
+
+      toast.success("Opening report in new tab...");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to open report");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -309,22 +355,86 @@ function Page() {
   ];
 
   const header = (
-    <div className="flex justify-between items-center bg-primary p-3 rounded-lg">
+    <div className="flex flex-col gap-4 bg-primary p-4 rounded-lg">
       <div>
         <h2 className="text-lg font-semibold text-white">Purchases</h2>
         <p className="text-sm text-black">Manage purchase orders and invoices</p>
       </div>
 
-      <div className="flex gap-2 items-center">
-        <IconField iconPosition="left">
-          <InputIcon className="pi pi-search" />
-          <InputText
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search purchase"
-            className="p-inputtext-sm"
-          />
-        </IconField>
+      <div className="flex flex-wrap gap-3 items-end">
+        {/* Search Input */}
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs text-white font-semibold mb-1">Search</label>
+          <IconField iconPosition="left">
+            <InputIcon className="pi pi-search" />
+            <InputText
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by invoice or supplier"
+              className="p-inputtext-sm w-full"
+            />
+          </IconField>
+        </div>
+
+        {/* Year Filter */}
+        <div className="min-w-[120px]">
+          <label className="block text-xs text-white font-semibold mb-1">Year</label>
+          <select
+            value={selectedYear || ""}
+            onChange={(e) => setSelectedYear(e.target.value ? parseInt(e.target.value) : null)}
+            className="p-2 rounded border border-gray-300 w-full text-sm bg-white"
+          >
+            <option value="">All Years</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Month Filter */}
+        <div className="min-w-[120px]">
+          <label className="block text-xs text-white font-semibold mb-1">Month</label>
+          <select
+            value={selectedMonth || ""}
+            onChange={(e) => setSelectedMonth(e.target.value ? parseInt(e.target.value) : null)}
+            disabled={!selectedYear}
+            className="p-2 rounded border border-gray-300 w-full text-sm bg-white disabled:bg-gray-100"
+          >
+            <option value="">All Months</option>
+            {[
+              { num: 1, name: "January" },
+              { num: 2, name: "February" },
+              { num: 3, name: "March" },
+              { num: 4, name: "April" },
+              { num: 5, name: "May" },
+              { num: 6, name: "June" },
+              { num: 7, name: "July" },
+              { num: 8, name: "August" },
+              { num: 9, name: "September" },
+              { num: 10, name: "October" },
+              { num: 11, name: "November" },
+              { num: 12, name: "December" },
+            ].map((month) => (
+              <option key={month.num} value={month.num}>
+                {month.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* View Report Button */}
+        <Button
+          label="View Report"
+          icon="pi pi-eye"
+          onClick={handleViewReport}
+          loading={loading}
+          className="bg-yellow-500 text-white hover:bg-yellow-600"
+          disabled={loading}
+        />
+
+        {/* Add Purchase Button */}
         <Button
           label="Add Purchase"
           icon="pi pi-plus"

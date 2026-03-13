@@ -412,13 +412,23 @@ const createSalesForAccessory = async (req, res) => {
 
 const getSalesList = async (req, res) => {
   try {
-    const userId = req.user?._id;
-    let { page = 1, limit, search } = req.query;
+
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+
+    let { page = 1, limit, search, year, month, pdf } = req.query;
 
     page = parseInt(page);
     limit = parseInt(limit) || 10;
 
-    const matchStage = { userId: new mongoose.Types.ObjectId(userId) };
+    const skip = (page - 1) * limit;
+
+    const isPdf = pdf === "true";
+
+    // =============================
+    // MATCH STAGE
+    // =============================
+
+    const matchStage = { userId };
 
     if (search) {
       matchStage.$or = [
@@ -427,10 +437,33 @@ const getSalesList = async (req, res) => {
       ];
     }
 
+    // Year filter
+    if (year) {
+
+      const start = new Date(`${year}-01-01`);
+      const end = new Date(`${year}-12-31`);
+
+      matchStage.createdAt = { $gte: start, $lte: end };
+    }
+
+    // Month filter
+    if (month && year) {
+
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59);
+
+      matchStage.createdAt = { $gte: startDate, $lte: endDate };
+    }
+
+    // =============================
+    // PIPELINE
+    // =============================
+
     const pipeline = [
+
       { $match: matchStage },
 
-      // Lookup sale items
+      // sale items lookup
       {
         $lookup: {
           from: "saleitems",
@@ -440,13 +473,14 @@ const getSalesList = async (req, res) => {
         }
       },
 
-      // Lookup product info for each sale item
       {
         $unwind: {
           path: "$saleItems",
           preserveNullAndEmptyArrays: true
         }
       },
+
+      // product lookup
       {
         $lookup: {
           from: "products",
@@ -455,6 +489,7 @@ const getSalesList = async (req, res) => {
           as: "saleItems.product"
         }
       },
+
       {
         $unwind: {
           path: "$saleItems.product",
@@ -462,64 +497,163 @@ const getSalesList = async (req, res) => {
         }
       },
 
-      // Group back sale items under each sale
+      // group
       {
         $group: {
+
           _id: "$_id",
+
           invoiceNumber: { $first: "$invoiceNumber" },
+
           totalQty: { $first: "$totalQty" },
+
           totalAmount: { $first: "$totalAmount" },
+
           paymentMethod: { $first: "$paymentMethod" },
-          userId: { $first: "$userId" },
+
           createdAt: { $first: "$createdAt" },
-          updatedAt: { $first: "$updatedAt" },
+
           saleItems: {
             $push: {
+
               _id: "$saleItems._id",
+
               productId: "$saleItems.productId",
+
               qty: "$saleItems.qty",
+
               price: "$saleItems.price",
+
               amount: "$saleItems.amount",
+
               product: "$saleItems.product"
+
             }
           }
         }
       },
 
-      { $sort: { createdAt: -1 } },
+      { $sort: { createdAt: -1 } }
 
-      // Pagination
-      {
-        $facet: {
-          data: [
-            { $skip: (page - 1) * limit },
-            { $limit: limit }
-          ],
-          totalCount: [{ $count: "count" }]
-        }
-      }
     ];
 
-    const result = await SalesModel.aggregate(pipeline);
+    // =============================
+    // PAGINATION (only normal API)
+    // =============================
+
+    if (!isPdf) {
+
+      pipeline.push({
+
+        $facet: {
+
+          data: [
+
+            { $skip: skip },
+
+            { $limit: limit }
+
+          ],
+
+          totalCount: [
+
+            { $count: "count" }
+
+          ]
+
+        }
+
+      });
+
+    }
+
+    const result = await SalesModel.aggregate(pipeline).exec();
+
+    // =============================
+    // PDF GENERATE
+    // =============================
+
+    if (isPdf) {
+
+      const sales = result;
+
+      const html = await ejs.renderFile(
+
+        path.join(process.cwd(), "src", "views", "salesReport.ejs"),
+
+        { sales }
+
+      );
+
+      const browser = await puppeteer.launch({
+        headless: true,
+        executablePath: process.env.CHROME_PATH || undefined
+      });
+
+      const page = await browser.newPage();
+
+      await page.setContent(html, { waitUntil: "networkidle0" });
+
+      const pdfBuffer = await page.pdf({
+
+        format: "A4",
+
+        printBackground: true
+
+      });
+
+      await browser.close();
+
+      res.set({
+
+        "Content-Type": "application/pdf",
+
+        "Content-Disposition": "inline; filename=sales_report.pdf",
+
+        "Content-Length": pdfBuffer.length
+
+      });
+
+      return res.send(pdfBuffer);
+
+    }
+
+    // =============================
+    // NORMAL RESPONSE
+    // =============================
 
     const sales = result[0].data;
+
     const total = result[0].totalCount[0]?.count || 0;
 
     return res.status(200).json({
+
       success: true,
+
       page,
+
       limit,
+
       total,
+
       totalPages: Math.ceil(total / limit),
+
       data: sales
+
     });
 
   } catch (error) {
+
     console.error("Get Sales List Error:", error);
+
     return res.status(500).json({
+
       success: false,
+
       message: error.message
+
     });
+
   }
 };
 

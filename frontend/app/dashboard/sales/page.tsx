@@ -43,10 +43,17 @@ function Page() {
 
   const [searchInput, setSearchInput] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  
+  // filters for year and month
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  // available years (current year and previous years)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   useEffect(() => {
     salesDataGet();
-  }, [pagination.page, pagination.rows, debouncedSearch]);
+  }, [pagination.page, pagination.rows, debouncedSearch, selectedYear, selectedMonth]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 500);
@@ -55,7 +62,7 @@ function Page() {
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
-  }, [debouncedSearch]);
+  }, [debouncedSearch, selectedYear, selectedMonth]);
 
   const salesDataGet = async () => {
     try {
@@ -65,6 +72,8 @@ function Page() {
           page: pagination.page,
           limit: pagination.rows,
           ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          ...(selectedYear ? { year: selectedYear } : {}),
+          ...(selectedMonth ? { month: selectedMonth } : {}),
         },
       });
 
@@ -212,6 +221,40 @@ function Page() {
     }
   };
 
+  const handleViewReport = async () => {
+    try {
+      setLoading(true);
+
+      // open blank window early to avoid popup blockers
+      const newWindow = window.open();
+
+      const response = await axiosInstance.get("/api/sales/list", {
+        params: {
+          pdf: "true",
+          ...(selectedYear ? { year: selectedYear } : {}),
+          ...(selectedMonth ? { month: selectedMonth } : {}),
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        },
+        responseType: "blob",
+      });
+
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+
+      if (newWindow) {
+        newWindow.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+
+      toast.success("Opening report in new tab...");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to open report");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirmDelete = (rowData: any) => {
     confirmDialog({
       message: `Are you sure you want to delete invoice "${rowData.invoiceNumber}"?`,
@@ -248,22 +291,81 @@ function Page() {
   ];
 
   const header = (
-    <div className="flex justify-between items-center bg-primary p-3 rounded-lg">
+    <div className="flex flex-col gap-4 bg-primary p-4 rounded-lg">
       <div>
         <h2 className="text-lg font-semibold text-white">Sales</h2>
         <p className="text-sm text-black">Manage recorded sales</p>
       </div>
 
-      <div className="flex gap-2 items-center">
-        <IconField iconPosition="left">
-          <InputIcon className="pi pi-search" />
-          <InputText
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search sales"
-            className="p-inputtext-sm"
-          />
-        </IconField>
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs text-white font-semibold mb-1">Search</label>
+          <IconField iconPosition="left">
+            <InputIcon className="pi pi-search" />
+            <InputText
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by invoice or product"
+              className="p-inputtext-sm w-full"
+            />
+          </IconField>
+        </div>
+
+        <div className="min-w-[120px]">
+          <label className="block text-xs text-white font-semibold mb-1">Year</label>
+          <select
+            value={selectedYear || ""}
+            onChange={(e) => setSelectedYear(e.target.value ? parseInt(e.target.value) : null)}
+            className="p-2 rounded border border-gray-300 w-full text-sm bg-white"
+          >
+            <option value="">All Years</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="min-w-[120px]">
+          <label className="block text-xs text-white font-semibold mb-1">Month</label>
+          <select
+            value={selectedMonth || ""}
+            onChange={(e) => setSelectedMonth(e.target.value ? parseInt(e.target.value) : null)}
+            disabled={!selectedYear}
+            className="p-2 rounded border border-gray-300 w-full text-sm bg-white disabled:bg-gray-100"
+          >
+            <option value="">All Months</option>
+            {[
+              { num: 1, name: "January" },
+              { num: 2, name: "February" },
+              { num: 3, name: "March" },
+              { num: 4, name: "April" },
+              { num: 5, name: "May" },
+              { num: 6, name: "June" },
+              { num: 7, name: "July" },
+              { num: 8, name: "August" },
+              { num: 9, name: "September" },
+              { num: 10, name: "October" },
+              { num: 11, name: "November" },
+              { num: 12, name: "December" },
+            ].map((month) => (
+              <option key={month.num} value={month.num}>
+                {month.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <Button
+          label="View Report"
+          icon="pi pi-eye"
+          onClick={handleViewReport}
+          loading={loading}
+          className="bg-yellow-500 text-black border-0 hover:bg-yellow-600"
+          disabled={loading}
+        />
+
         <Button
           label="Add Sale"
           icon="pi pi-plus"

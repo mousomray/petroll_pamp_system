@@ -399,22 +399,34 @@ const listPurchases = async (req, res) => {
         const userId = new mongoose.Types.ObjectId(req.user._id);
 
         const page = parseInt(req.query.page) || 1;
-        const limit =
-            parseInt(req.query.limit) ||
-            parseInt(process.env.DEFAULT_PAGE_SIZE) ||
-            10;
-
-        const search = req.query.search ? req.query.search.trim() : "";
+        const limit = parseInt(req.query.limit) || parseInt(process.env.DEFAULT_PAGE_SIZE) || 10;
         const skip = (page - 1) * limit;
 
+        const search = req.query.search ? req.query.search.trim() : "";
+        const year = req.query.year ? parseInt(req.query.year) : null;
+        const month = req.query.month ? parseInt(req.query.month) : null;
+        const isPdf = req.query.pdf === "true"; // PDF generate হলে true
+
         const matchStage = { userId };
+
+        if (year) {
+            matchStage.createdAt = {
+                ...matchStage.createdAt,
+                $gte: new Date(`${year}-01-01`),
+                $lte: new Date(`${year}-12-31`)
+            };
+        }
+
+        if (month && year) {
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 0, 23, 59, 59);
+            matchStage.createdAt = { $gte: startDate, $lte: endDate };
+        }
 
         const pipeline = [
             { $match: matchStage },
 
-            // ===============================
-            // ✅ Supplier Lookup
-            // ===============================
+            // Supplier join
             {
                 $lookup: {
                     from: "suppliers",
@@ -425,60 +437,25 @@ const listPurchases = async (req, res) => {
             },
             { $unwind: { path: "$supplier", preserveNullAndEmptyArrays: true } },
 
-            // ===============================
-            // ✅ Items Lookup with Nested Product + Tank
-            // ===============================
+            // Items join + nested product & tank
             {
                 $lookup: {
                     from: "purchaseitems",
                     let: { purchaseId: "$_id" },
                     pipeline: [
-                        {
-                            $match: {
-                                $expr: { $eq: ["$purchaseId", "$$purchaseId"] }
-                            }
-                        },
-
-                        // Product Join
-                        {
-                            $lookup: {
-                                from: "products",
-                                localField: "productId",
-                                foreignField: "_id",
-                                as: "product"
-                            }
-                        },
+                        { $match: { $expr: { $eq: ["$purchaseId", "$$purchaseId"] } } },
+                        { $lookup: { from: "products", localField: "productId", foreignField: "_id", as: "product" } },
                         { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
-
-                        // Tank Join (Only if tankId exists)
-                        {
-                            $lookup: {
-                                from: "tanks",
-                                localField: "tankId",
-                                foreignField: "_id",
-                                as: "tank"
-                            }
-                        },
+                        { $lookup: { from: "tanks", localField: "tankId", foreignField: "_id", as: "tank" } },
                         { $unwind: { path: "$tank", preserveNullAndEmptyArrays: true } }
-
                     ],
                     as: "items"
                 }
             },
-
-            // ===============================
-            // ✅ Add Total Items Count
-            // ===============================
-            {
-                $addFields: {
-                    totalItems: { $size: "$items" }
-                }
-            }
+            { $addFields: { totalItems: { $size: "$items" } } }
         ];
 
-        // ===============================
-        // ✅ Search Filter
-        // ===============================
+        // Search filter
         if (search) {
             pipeline.push({
                 $match: {
@@ -490,18 +467,43 @@ const listPurchases = async (req, res) => {
             });
         }
 
-        pipeline.push({
-            $facet: {
-                data: [
-                    { $sort: { createdAt: -1 } },
-                    { $skip: skip },
-                    { $limit: limit }
-                ],
-                totalCount: [{ $count: "count" }]
-            }
-        });
+        if (!isPdf) {
+            pipeline.push({
+                $facet: {
+                    data: [{ $sort: { createdAt: -1 } }, { $skip: skip }, { $limit: limit }],
+                    totalCount: [{ $count: "count" }]
+                }
+            });
+        } else {
+            pipeline.push({ $sort: { createdAt: -1 } }); // full data for PDF
+        }
 
-        const result = await PurchaseModel.aggregate(pipeline);
+        const result = await PurchaseModel.aggregate(pipeline).exec();
+
+        if (isPdf) {
+            const purchases = result;
+            const templatePath = path.join(process.cwd(), "src", "views", "purchaseReport.ejs");
+
+            const html = await ejs.renderFile(templatePath, { purchases });
+
+            const browser = await puppeteer.launch({
+                headless: true,
+                executablePath: process.env.CHROME_PATH || undefined
+            });
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: "networkidle0" });
+
+            const pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
+            await browser.close();
+
+            res.set({
+                "Content-Type": "application/pdf",
+                "Content-Disposition": `attachment; filename=purchase_report.pdf`,
+                "Content-Length": pdfBuffer.length
+            });
+
+            return res.send(pdfBuffer);
+        }
 
         const purchases = result[0].data;
         const totalCount = result[0].totalCount[0]?.count || 0;
@@ -519,12 +521,11 @@ const listPurchases = async (req, res) => {
         });
 
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.log("Error in listPurchases:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
+
 
 const getPurchaseDetails = async (req, res) => {
     try {
