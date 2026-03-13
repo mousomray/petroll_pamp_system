@@ -21,6 +21,8 @@ const simplePurchaseSchema = z.object({
     purchaseDate: z.date(),
     invoiceNo: z.string().optional(),
     paymentMethod: z.enum(["CASH", "BANK", "UPI", "CARD"]),
+    instrumentId: z.string().optional(),
+    instrumentDate: z.date().optional(),
     items: z.array(z.object({
         productId: z.string().min(1, "Product is required"),
         quantity: z.number().positive("Quantity must be greater than 0"),
@@ -30,6 +32,16 @@ const simplePurchaseSchema = z.object({
             quantity: z.number().nonnegative("Quantity must be >= 0"),
         })).optional(),
     })).min(1, "At least one item is required"),
+}).superRefine((data, ctx) => {
+    // If payment method is not CASH, require instrumentId and instrumentDate
+    if (data.paymentMethod !== 'CASH') {
+        if (!data.instrumentId || data.instrumentId.trim() === '') {
+            ctx.addIssue({ path: ['instrumentId'], code: z.ZodIssueCode.custom, message: 'Instrument id is required for non-cash payments' });
+        }
+        if (!data.instrumentDate) {
+            ctx.addIssue({ path: ['instrumentDate'], code: z.ZodIssueCode.custom, message: 'Instrument date is required for non-cash payments' });
+        }
+    }
 });
 
 type CreatePurchaseFormData = z.infer<typeof simplePurchaseSchema>;
@@ -63,9 +75,11 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
         resolver: zodResolver(simplePurchaseSchema),
         defaultValues: {
             supplierId: "",
-                invoiceNo: "",
+            invoiceNo: "",
             purchaseDate: new Date(),
             paymentMethod: "CASH",
+            instrumentId: "",
+            instrumentDate: undefined,
             items: [
                 {
                     productId: "",
@@ -75,6 +89,9 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
             ],
         },
     });
+
+    // watch payment method to conditionally show instrument fields
+    const paymentMethodValue = watch("paymentMethod");
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -102,11 +119,13 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
             try {
                 setLoading(true);
                     const mapped: any = {
-                    supplierId: initialData.supplier?._id || initialData.supplierId || "",
-                    invoiceNo: initialData.invoiceNo || "",
-                    purchaseDate: initialData.purchaseDate ? new Date(initialData.purchaseDate) : new Date(),
-                    paymentMethod: initialData.paymentMethod || "CASH",
-                    items: (initialData.items || []).map((it: any) => {
+                        supplierId: initialData.supplier?._id || initialData.supplierId || "",
+                        invoiceNo: initialData.invoiceNo || "",
+                        purchaseDate: initialData.purchaseDate ? new Date(initialData.purchaseDate) : new Date(),
+                        paymentMethod: initialData.paymentMethod || "CASH",
+                        instrumentId: initialData.instrumentId || initialData.instrument?.id || "",
+                        instrumentDate: initialData.instrumentDate ? new Date(initialData.instrumentDate) : (initialData.instrument?.date ? new Date(initialData.instrument.date) : undefined),
+                        items: (initialData.items || []).map((it: any) => {
                         const prodId = it.productId || it.product?._id || "";
                         const qty = Number(it.quantity) || 0;
                         const tankId = it.tankId || it.tank?._id || null;
@@ -268,6 +287,8 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                 supplierId: data.supplierId,
                 purchaseDate: formattedDate,
                 paymentMethod: data.paymentMethod,
+                instrumentId: data.instrumentId || undefined,
+                instrumentDate: data.instrumentDate ? new Date(data.instrumentDate).toISOString().split('T')[0] : undefined,
                 items: data.items.map((item) => ({
                     productId: item.productId,
                     quantity: Number(item.quantity),
@@ -385,7 +406,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                         </div>
 
                         {/* Supplier */}
-                        <div className="space-y-1 md:col-span-5">
+                        <div className="space-y-1 md:col-span-4">
                             <label className="text-sm font-semibold text-gray-700">
                                 Supplier <span className="text-red-500">*</span>
                             </label>
@@ -458,7 +479,7 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                         </div>
 
                         {/* Payment Method */}
-                        <div className="space-y-2 md:col-span-2">
+                        <div className="space-y-2 md:col-span-3">
                             <label className="text-sm font-semibold text-gray-700">
                                 Payment Method <span className="text-red-500">*</span>
                             </label>
@@ -485,6 +506,54 @@ function PurchaseForm({ onClose, onSuccess, editId, initialData }: PurchaseFormP
                                     <i className="pi pi-exclamation-circle"></i>
                                     {errors.paymentMethod.message}
                                 </small>
+                            )}
+                            {/* Instrument fields for non-cash payments */}
+                            {paymentMethodValue && paymentMethodValue !== 'CASH' && (
+                                <div className="flex gap-3 items-end mt-2">
+                                    <div className="flex-1">
+                                        <label className="text-sm font-semibold text-gray-700">Instrument Id <span className="text-red-500">*</span></label>
+                                        <Controller
+                                            name="instrumentId"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <InputText
+                                                    value={field.value}
+                                                    onChange={(e) => field.onChange(e.target.value)}
+                                                    placeholder="Cheque / ref id"
+                                                    className="w-full h-10"
+                                                />
+                                            )}
+                                        />
+                                        {errors.instrumentId && (
+                                            <small className="text-red-500 flex items-center gap-1">
+                                                <i className="pi pi-exclamation-circle"></i>
+                                                {errors.instrumentId.message}
+                                            </small>
+                                        )}
+                                    </div>
+
+                                    <div className="w-40">
+                                        <label className="text-sm font-semibold text-gray-700">Instrument Date <span className="text-red-500">*</span></label>
+                                        <Controller
+                                            name="instrumentDate"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Calendar
+                                                    value={field.value}
+                                                    onChange={(e) => field.onChange(e.value)}
+                                                    dateFormat="dd/mm/yy"
+                                                    className="w-full h-10"
+                                                />
+                                            )}
+                                        />
+                                        {errors.instrumentDate && (
+                                            <small className="text-red-500 flex items-center gap-1">
+                                                <i className="pi pi-exclamation-circle"></i>
+                                                {errors.instrumentDate.message}
+                                            </small>
+                                        )}
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>

@@ -38,6 +38,8 @@ const createPurchase = async (req, res) => {
             invoiceNo,
             purchaseDate,
             paymentMethod = "CASH",
+            instrumentId,
+            instrumentDate,
             items
         } = req.body;
 
@@ -296,6 +298,8 @@ const createPurchase = async (req, res) => {
             purchaseDate,
             paymentStatus: "PAID",
             paymentMethod,
+            instrumentId,
+            instrumentDate,
             paidAmount: grandTotal,
             dueAmount: 0,
             subTotal,
@@ -648,6 +652,8 @@ const updatePurchase = async (req, res) => {
             supplierId,
             purchaseDate,
             paymentMethod = "CASH",
+            instrumentId,
+            instrumentDate,
             items
         } = req.body;
 
@@ -850,6 +856,8 @@ const updatePurchase = async (req, res) => {
         existingPurchase.supplierId = supplierId;
         existingPurchase.purchaseDate = purchaseDate;
         existingPurchase.paymentMethod = paymentMethod;
+        existingPurchase.instrumentId = instrumentId;
+        existingPurchase.instrumentDate = instrumentDate;
         existingPurchase.subTotal = subTotal;
         existingPurchase.cgstAmount = totalCgst;
         existingPurchase.sgstAmount = totalSgst;

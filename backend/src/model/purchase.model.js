@@ -84,6 +84,15 @@ const purchaseSchema = new mongoose.Schema(
             default: "CASH"
         },
 
+        instrumentId:{
+            type: String,
+            trim: true
+        },
+
+        instrumentDate: {
+            type: Date
+        },
+
         note: {
             type: String,
             trim: true

@@ -59,6 +59,13 @@ const createPurchaseSchema = z
       .enum(["CASH", "BANK", "UPI", "CARD"])
       .default("CASH"),
 
+      instrumentId: z
+      .string()
+      .trim()
+      .optional(),
+
+      instrumentDate: z.coerce.date().optional(),
+
     paidAmount: z.coerce
       .number()
       .min(0, "Paid amount cannot be negative")

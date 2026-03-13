@@ -369,6 +369,12 @@
                 <p><strong>Payment Method:</strong>
                     <%= purchase.paymentMethod || 'N/A' %>
                 </p>
+                <p><strong>Instrument Id:</strong>
+                    <%= purchase.instrumentId || 'N/A' %>
+                </p>
+                <p><strong>Instrument Date:</strong>
+                    <%= purchase.instrumentDate ? new Date(purchase.instrumentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A' %>
+                </p>
                 <p><strong>Payment Status:</strong>
                     <span class="payment-status status-<%= (purchase.paymentStatus || 'UNPAID').toLowerCase() %>">
                         <%= purchase.paymentStatus || 'UNPAID' %>
