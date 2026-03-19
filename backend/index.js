@@ -12,7 +12,7 @@ Conect()
 
 app.use(cors(
     {
-        origin: [process.env.FRONTEND_URL],
+        origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_2],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
         credentials: true
     }
@@ -46,13 +46,13 @@ const dashboardRoutes = require("./src/routes/dashboard.routes.js")
 
 app.use("/api/register", registerRoutes)
 app.use("/api/login", loginRoutes)
-app.use("/api/product",productRoutes)
+app.use("/api/product", productRoutes)
 app.use("/api/financial-year", financialRoutes)
 app.use("/api/financial-stock", productFinancialStockRoutes)
-app.use("/api/supplier",supplierRoutes)
+app.use("/api/supplier", supplierRoutes)
 app.use("/api/tank", tankRoutes)
 app.use("/api/purchase", purchaseRoutes)
-app.use("/api/opening-stock",opningStock)
+app.use("/api/opening-stock", opningStock)
 app.use("/api/nozzle", nozzelRoutes)
 app.use("/api/worker", workerRoutes)
 app.use("/api/shift", shiftRoutes)
