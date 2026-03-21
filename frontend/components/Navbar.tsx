@@ -12,7 +12,7 @@ import { toast } from "react-toastify";
 
 
 interface NavbarProps {
-    role:  "ADMIN" | "MANAGER" | "CASHIER";
+    role: "ADMIN" | "MANAGER" | "CASHIER";
     user: {
         name: string;
         image: string;
@@ -80,11 +80,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
             }, 500);
         } catch (error: any) {
             console.error("Logout error:", error);
-            
+
             // Even if API fails, clear local data and redirect
             localStorage.removeItem("login-token");
             document.cookie = "login-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            
+
             toast.error("Logout failed, but clearing session");
             setTimeout(() => {
                 window.location.href = "/login";
@@ -97,7 +97,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
             label: "Profile",
             icon: "pi pi-user",
             command: () => {
-                window.location.href = `${basePath}/profile`;
+                window.location.href = "/dashboard/profile";
             },
         },
         { separator: true },
@@ -105,7 +105,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
             label: "Update Password",
             icon: "pi pi-lock",
             command: () => {
-                window.location.href = `${basePath}/updatepassword`;
+                window.location.href = "/dashboard/update-password";
             },
         },
         { separator: true },
@@ -184,24 +184,24 @@ const Navbar: React.FC<NavbarProps> = ({ user, role }) => {
             {/* RIGHT SECTION */}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 {/* Notifications */}
-                <Button
+                {/* <Button
                     icon="pi pi-bell"
                     rounded
                     text
                     severity="secondary"
                     badge="3"
                     badgeClassName="p-badge-danger"
-                />
+                /> */}
 
                 {/* Messages */}
-                <Button
+                {/* <Button
                     icon="pi pi-envelope"
                     rounded
                     text
                     severity="secondary"
                     badge="5"
                     badgeClassName="p-badge-info"
-                />
+                /> */}
 
                 <div
                     style={{

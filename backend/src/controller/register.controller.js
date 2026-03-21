@@ -11,20 +11,74 @@ const sendPasswordEmail = require("../helper/mail.service.js")
 const registerAdmin = async (req, res) => {
   try {
     const parsedData = createUserSchema.parse(req.body);
+
     const existingEmail = await UserModel.findOne({ email: parsedData.email });
     if (existingEmail) {
       return res.status(409).json({
         message: "Email already in use",
       });
     }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(parsedData.password, salt);
-    const user = new UserModel({ ...parsedData, password: hashedPassword });
+
+    const user = new UserModel({
+      ...parsedData,
+      password: hashedPassword
+    });
 
     await user.save();
-    const sentMail = await sendPasswordEmail(parsedData.email, parsedData.password);
-    return res.status(201).json({ message: "Petroll Pamp registered successfully", user });
+
+    const userId = user._id; // ⭐ newly created user id
+
+    await sendPasswordEmail(parsedData.email, parsedData.password);
+
+    const defaultHeads = [
+      {
+        userId: userId,
+        name: "Fuel Purchase",
+        type: "EXPENSE"
+      },
+      {
+        userId: userId,
+        name: "Fuel Sales",
+        type: "INCOME"
+      },
+      {
+        userId: userId,
+        name: "Accessory Expenses",
+        type: "EXPENSE"
+      },
+      {
+        userId: userId,
+        name: "Accessory Sales",
+        type: "INCOME"
+      }
+    ];
+
+    // Check existing heads to avoid duplicates
+    const existingHeads = await AccountHead.find({
+      userId: userId,
+      name: { $in: defaultHeads.map(h => h.name) }
+    });
+
+    const existingNames = existingHeads.map(h => h.name);
+
+    const headsToInsert = defaultHeads.filter(
+      head => !existingNames.includes(head.name)
+    );
+
+    if (headsToInsert.length > 0) {
+      await AccountHead.insertMany(headsToInsert);
+    }
+
+    return res.status(201).json({
+      message: "Petrol Pump registered successfully",
+      user
+    });
+
   } catch (error) {
+
     if (error.code === 11000 && error.keyPattern?.email) {
       return res.status(409).json({
         message: "Email already in use",
@@ -37,7 +91,9 @@ const registerAdmin = async (req, res) => {
         errors: error.errors,
       });
     }
+
     console.error("Admin registration error:", error);
+
     return res.status(500).json({
       message: "Internal server error",
     });

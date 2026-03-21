@@ -312,7 +312,6 @@ function Page() {
           <Column field="email" header="Email" sortable />
           <Column field="phone" header="Phone" />
           <Column header="Role" body={roleTemplate} />
-          <Column field="shiftType" header="Shift" />
           <Column header="Status" body={statusTemplate} />
           <Column header="Created" body={(row: any) => formatDate(row.createdAt)} />
           <Column header="Actions" body={actionTemplate} />

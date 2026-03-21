@@ -343,7 +343,7 @@ function Page() {
                 <i className="pi pi-database text-white text-2xl"></i>
             </div>
             <div>
-                <h2 className="text-xl font-bold text-white">Add New Supplier</h2>
+                <h2 className="text-xl font-bold text-white">Add New Opening Stock</h2>
                 <p className="text-sm text-white/90">Create a new items opening stock</p>
             </div>
         </div>

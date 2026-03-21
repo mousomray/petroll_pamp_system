@@ -194,7 +194,7 @@ const createSalesForAccessory = async (req, res) => {
   try {
 
     const userId = req.user?._id;
-    const { items, paymentMethod } = req.body;
+    const { items, paymentMethod, workerId } = req.body;
 
     if (!items || items.length === 0) {
       throw new Error("No items provided");
@@ -239,12 +239,17 @@ const createSalesForAccessory = async (req, res) => {
     let totalQty = 0;
     let totalAmount = 0;
 
+    // =====================
+    // CREATE SALES
+    // =====================
+
     const sales = await SalesModel.create([{
       saleType: "ACCESSORY",
       invoiceNumber,
       totalQty: 0,
       totalAmount: 0,
       paymentMethod: paymentMethod || "CASH",
+      workerId: workerId || null,   // ⭐ workerId added
       userId
     }], { session });
 
@@ -297,10 +302,6 @@ const createSalesForAccessory = async (req, res) => {
         financialYear
       }).session(session);
 
-      // =====================
-      // OPENING STOCK EXISTS
-      // =====================
-
       if (openingStock) {
 
         openingStock.totalSale += qty;
@@ -313,10 +314,6 @@ const createSalesForAccessory = async (req, res) => {
 
       }
 
-      // =====================
-      // OPENING STOCK NOT EXISTS
-      // =====================
-
       else {
 
         const openingQty = currentStock;
@@ -327,13 +324,10 @@ const createSalesForAccessory = async (req, res) => {
 
           userId,
           productId: product._id,
-
           financialYear,
-
           openingStock: openingQty,
           totalPurchase: 0,
           totalSale: qty,
-
           closingStock: closingQty < 0 ? 0 : closingQty
 
         }], { session });
@@ -368,6 +362,7 @@ const createSalesForAccessory = async (req, res) => {
       await TransactionModel.create([{
 
         userId,
+        workerId: workerId || null, // ⭐ workerId added
         accountHead: accessorySalesHead._id,
         amount: totalAmount,
         type: "INCOME",
@@ -672,7 +667,10 @@ const generateSalesInvoice = async (req, res) => {
         }
       },
 
+      // ======================
       // SHIFT
+      // ======================
+
       {
         $lookup: {
           from: "shifts",
@@ -681,20 +679,40 @@ const generateSalesInvoice = async (req, res) => {
           as: "shift"
         }
       },
+
       { $unwind: { path: "$shift", preserveNullAndEmptyArrays: true } },
 
+      // ======================
+      // FINAL WORKER ID
+      // ======================
+
+      {
+        $addFields: {
+          finalWorkerId: {
+            $ifNull: ["$shift.workerId", "$workerId"]
+          }
+        }
+      },
+
+      // ======================
       // WORKER
+      // ======================
+
       {
         $lookup: {
           from: "workers",
-          localField: "shift.workerId",
+          localField: "finalWorkerId",
           foreignField: "_id",
           as: "worker"
         }
       },
+
       { $unwind: { path: "$worker", preserveNullAndEmptyArrays: true } },
 
+      // ======================
       // SALE ITEMS
+      // ======================
+
       {
         $lookup: {
           from: "saleitems",
@@ -716,6 +734,7 @@ const generateSalesInvoice = async (req, res) => {
                 as: "product"
               }
             },
+
             { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
 
             // NOZZLE
@@ -727,6 +746,7 @@ const generateSalesInvoice = async (req, res) => {
                 as: "nozzle"
               }
             },
+
             { $unwind: { path: "$nozzle", preserveNullAndEmptyArrays: true } },
 
             // AMOUNT CALCULATION
@@ -746,15 +766,11 @@ const generateSalesInvoice = async (req, res) => {
               $project: {
                 productName: "$product.name",
                 productType: "$product.type",
-
                 qty: 1,
                 litres: 1,
-
                 price: 1,
                 pricePerLitre: 1,
-
                 amount: 1,
-
                 nozzleNumber: "$nozzle.nozzleNumber"
               }
             }
@@ -764,11 +780,19 @@ const generateSalesInvoice = async (req, res) => {
         }
       },
 
+      // ======================
+      // TOTAL SALE
+      // ======================
+
       {
         $addFields: {
           workerTotalSale: { $sum: "$items.amount" }
         }
       },
+
+      // ======================
+      // FINAL RESPONSE
+      // ======================
 
       {
         $project: {
@@ -776,7 +800,7 @@ const generateSalesInvoice = async (req, res) => {
           invoiceNumber: 1,
           createdAt: 1,
 
-          workerId: "$worker._id",
+          workerId: "$finalWorkerId",
 
           worker: {
             name: "$worker.name",

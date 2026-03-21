@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import axiosInstance from "@/service/axios.service";
 import { toast } from "react-toastify";
 import { Button } from "primereact/button";
 import { Dropdown } from "primereact/dropdown";
 import { InputNumber } from "primereact/inputnumber";
-import { InputText } from "primereact/inputtext";
 
 type Props = {
     onClose: () => void;
@@ -15,6 +14,7 @@ type Props = {
 };
 
 type FormData = {
+    workerId: string;
     paymentMethod: string;
     items: { productId: string; qty: number }[];
 };
@@ -22,14 +22,25 @@ type FormData = {
 export default function SalesForm({ onClose, onSuccess }: Props) {
     const [loading, setLoading] = useState(false);
     const [products, setProducts] = useState<any[]>([]);
+    const [workers, setWorkers] = useState<any[]>([]);
 
-    const { register, handleSubmit, setValue, watch } = useForm<FormData>({
-        defaultValues: { paymentMethod: "CASH", items: [{ productId: "", qty: 1 }] },
+    const { register, handleSubmit, setValue, watch, control } = useForm<FormData>({
+        defaultValues: { workerId: "", paymentMethod: "CASH", items: [{ productId: "", qty: 1 }] },
     });
 
     useEffect(() => {
         fetchAccessoryProducts();
+        fetchWorkers();
     }, []);
+
+    const fetchWorkers = async () => {
+        try {
+            const res = await axiosInstance.get("/api/worker/dropdown-workers");
+            setWorkers(res.data.data || []);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.message || "Failed to load workers");
+        }
+    };
 
     const fetchAccessoryProducts = async () => {
         try {
@@ -48,6 +59,7 @@ export default function SalesForm({ onClose, onSuccess }: Props) {
         try {
             setLoading(true);
             const payload = {
+                workerId: data.workerId,
                 paymentMethod: data.paymentMethod,
                 items: data.items.map((it) => ({ productId: it.productId, qty: Number(it.qty) })),
             };
@@ -65,6 +77,34 @@ export default function SalesForm({ onClose, onSuccess }: Props) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Worker</label>
+                <Controller
+                    name="workerId"
+                    control={control}
+                    rules={{ required: "Worker is required" }}
+                    render={({ field, fieldState }) => (
+                        <>
+                            <Dropdown
+                                value={field.value}
+                                options={workers.map((w) => ({
+                                    label: `${w.name} - ${w.workerType || "WORKER"}`,
+                                    value: w._id,
+                                }))}
+                                onChange={(e) => field.onChange(e.value)}
+                                placeholder="Select worker"
+                                className={`w-full ${fieldState.error ? "p-invalid" : ""}`}
+                                filter
+                                showClear
+                            />
+                            {fieldState.error && (
+                                <small className="text-red-500">{fieldState.error.message}</small>
+                            )}
+                        </>
+                    )}
+                />
+            </div>
+
             <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Payment Method</label>
                 <select {...register("paymentMethod")} className="p-inputtext w-full">

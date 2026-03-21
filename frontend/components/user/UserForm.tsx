@@ -27,11 +27,7 @@ const roleOptions = [
     { label: "Accountant", value: "ACCOUNTANT" },
 ];
 
-const shiftOptions = [
-    { label: "Morning", value: "MORNING" },
-    { label: "Evening", value: "EVENING" },
-    { label: "Night", value: "NIGHT" },
-];
+// Shift field removed from UI — kept out of form controls
 
 function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -331,32 +327,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                             )}
                         </div>
 
-                        {/* Shift Type */}
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-gray-700">
-                                Shift Type <span className="text-red-500">*</span>
-                            </label>
-                            <Controller
-                                name="shiftType"
-                                control={control}
-                                render={({ field }) => (
-                                    <Dropdown
-                                        {...field}
-                                        options={shiftOptions}
-                                        optionLabel="label"
-                                        optionValue="value"
-                                        placeholder="Select shift"
-                                        className="w-full"
-                                    />
-                                )}
-                            />
-                            {errors.shiftType && (
-                                <small className="text-red-500 flex items-center gap-1">
-                                    <i className="pi pi-exclamation-circle"></i>
-                                    {errors.shiftType.message}
-                                </small>
-                            )}
-                        </div>
+                        {/* Shift field removed from UI */}
                     </div>
 
                     {/* Active Status - Only for Edit Mode */}

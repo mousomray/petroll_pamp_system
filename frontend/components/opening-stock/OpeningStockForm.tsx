@@ -57,6 +57,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
     const [loading, setLoading] = useState(false);
     const [Temploading, setTempLoading] = useState(false);
     const [tempStock, setTempStock] = useState<Product[]>([]);
+    const [draftSaved, setDraftSaved] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
     const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
     const [currentStock, setCurrentStock] = useState<any>(null);
@@ -175,6 +176,8 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
             setTempLoading(true);
             const res = await axiosInstance.get("/api/opening-stock/get-all-temp-stock");
             setTempStock(res.data.data);
+            // If there is any temp stock in backend, treat it as a saved draft
+            setDraftSaved((res.data.data || []).length > 0);
         } catch (error) {
             console.error("Failed to fetch temp opening stock");
         } finally {
@@ -182,12 +185,31 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         }
     }
 
+    // Determine whether selected products have opening stock values set
+    const canSaveDraft = React.useMemo(() => {
+        if (!selectedProducts || selectedProducts.length === 0) return false;
+        return selectedProducts.every((p) => {
+            if (p.type === "FUEL") {
+                return (
+                    Array.isArray(p.tankAllocations) &&
+                    p.tankAllocations.length > 0 &&
+                    p.tankAllocations.every(
+                        (ta) => ta.openingStock !== null && ta.openingStock !== undefined
+                    )
+                );
+            }
+            return p.openingStock !== null && p.openingStock !== undefined;
+        });
+    }, [selectedProducts]);
+
     const opningStock = async () => {
         try {
             setIsConfirmSubmitting(true);
           const res = await axiosInstance.post("/api/opening-stock/create-opening-stock");
           toast.success(res.data.message || "Opening stock created successfully!");
           getTempOpeningStock();
+          // After final creation, clear draft flag
+          setDraftSaved(false);
           onSuccess()
         } catch (error) {
               toast.error(`Failed to create opening stock`);
@@ -378,20 +400,19 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                     products: productsPayload
                 };
 
-                // ✅ SINGLE API CALL
-                const res = await axiosInstance.post(
-                    "/api/opening-stock/create-temp-stock",
-                    payload
-                );
+                // ✅ SINGLE API CALL (save as draft / temp stock)
+                const res = await axiosInstance.post("/api/opening-stock/create-temp-stock", payload);
 
                 toast.success(
-                    res.data.message ||
-                    `Opening stock created for ${selectedProducts.length} product(s)`
+                    res.data.message || `Opening stock created for ${selectedProducts.length} product(s)`
                 );
 
+                // Update temp stock from server and mark draft present
+                await getTempOpeningStock();
+
+                // Clear current selection so user can pick new products if desired
                 createForm.reset();
                 setSelectedProducts([]);
-                onSuccess();
             }
 
             // ==============================
@@ -463,10 +484,14 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
 
     // For Create mode - show product selector
     if (!isEditMode) {
-        const productOptions = products.map((product) => ({
-            label: `${product.name} (${product.unit})`,
-            value: product._id,
-        }));
+        // Exclude products already present in temp (draft) stock
+        const draftedIds = (tempStock || []).map((p) => p._id);
+        const productOptions = products
+            .filter((product) => !draftedIds.includes(product._id))
+            .map((product) => ({
+                label: `${product.name} (${product.unit})`,
+                value: product._id,
+            }));
 
         return (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -635,9 +660,9 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                     />
                     <Button
                         type="submit"
-                        label="save as Draft"
+                        label="Save as Draft"
                         loading={isSubmitting}
-                        disabled={isSubmitting || selectedProducts.length === 0}
+                        disabled={isSubmitting || !canSaveDraft}
                         icon="pi pi-check"
                     />
 
@@ -646,7 +671,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                         label="Confirm & Create Stock"
                         onClick={opningStock}
                         loading={isConfirmSubmitting}
-                        disabled={isConfirmSubmitting}
+                        disabled={!draftSaved || isConfirmSubmitting}
                         icon="pi pi-check"
                     />
                 </div>
