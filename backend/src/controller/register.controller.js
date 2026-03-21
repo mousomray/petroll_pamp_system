@@ -17,14 +17,13 @@ const registerAdmin = async (req, res) => {
         message: "Email already in use",
       });
     }
-
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(parsedData.password, salt);
     const user = new UserModel({ ...parsedData, password: hashedPassword });
 
     await user.save();
-
-    return res.status(201).json({ message: "Admin registered successfully", user });
+    const sentMail = await sendPasswordEmail(parsedData.email, parsedData.password);
+    return res.status(201).json({ message: "Petroll Pamp registered successfully", user });
   } catch (error) {
     if (error.code === 11000 && error.keyPattern?.email) {
       return res.status(409).json({
@@ -312,6 +311,8 @@ const updateUser = async (req, res) => {
       { $set: parsedData },
       { new: true }
     ).select("-password"); // exclude password from response
+
+    await sendPasswordEmail(parsedData.email, req.body.password);
 
     return res.status(200).json({
       message: `User ${updatedUser.name} updated successfully as ${updatedUser.role}`,
