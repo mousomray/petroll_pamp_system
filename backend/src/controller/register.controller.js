@@ -6,6 +6,7 @@ const { passwordGenerator } = require("../helper/PasswordGenerator.js")
 const { createUserSchema, updateUserSchema } = require("../schema/user.schema.js");
 const uploadSingleImage = require("../helper/upload.js");
 const sendPasswordEmail = require("../helper/mail.service.js")
+const AccountHead = require("../model/accountHead.model.js");
 
 
 const registerAdmin = async (req, res) => {
