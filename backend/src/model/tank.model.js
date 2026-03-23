@@ -14,7 +14,6 @@ const tankSchema = new mongoose.Schema(
       required: true,
       trim: true,
       uppercase: true,
-      unique: true,
     },
     capacity: {
       type: Number,

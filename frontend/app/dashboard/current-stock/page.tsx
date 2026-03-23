@@ -167,7 +167,7 @@ function Page() {
                     <Column header="Cost Price" body={(row) => priceTemplate(row, 'costPrice')} style={{ minWidth: "120px" }} />
                     <Column header="Selling Price" body={(row) => priceTemplate(row, 'sellingPrice')} style={{ minWidth: "120px" }} />
                     <Column header="Created" body={(row: any) => formatDate(row.createdAt)} style={{ minWidth: "110px" }} />
-                    <Column header="Actions" body={actionTemplate} style={{ minWidth: "90px" }} />
+                    {/* <Column header="Actions" body={actionTemplate} style={{ minWidth: "90px" }} /> */}
                 </DataTable>
 
                 <Menu model={menuModel} popup ref={menu} />

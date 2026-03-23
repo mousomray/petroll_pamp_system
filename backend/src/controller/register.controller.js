@@ -6,6 +6,7 @@ const { passwordGenerator } = require("../helper/PasswordGenerator.js")
 const { createUserSchema, updateUserSchema } = require("../schema/user.schema.js");
 const uploadSingleImage = require("../helper/upload.js");
 const sendPasswordEmail = require("../helper/mail.service.js")
+const { sendPasswordSMS } = require("../helper/sendPasswordSMS.js");
 const AccountHead = require("../model/accountHead.model.js");
 
 
@@ -33,6 +34,7 @@ const registerAdmin = async (req, res) => {
     const userId = user._id; // ⭐ newly created user id
 
     await sendPasswordEmail(parsedData.email, parsedData.password);
+    // await sendPasswordSMS(parsedData.phone, parsedData.email, parsedData.password);
 
     const defaultHeads = [
       {

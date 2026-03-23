@@ -257,7 +257,7 @@ function UserForm({ userId, onClose, onSuccess }: UserFormProps) {
                                     render={({ field }) => {
                                         const [showPassword, setShowPassword] = React.useState(false);
                                         const generatePassword = () => {
-                                            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#_$%&*';
+                                            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz123456789@#_$%&*';
                                             let pass = '';
                                             for (let i = 0; i < 6; i++) {
                                                 pass += chars.charAt(Math.floor(Math.random() * chars.length));

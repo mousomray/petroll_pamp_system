@@ -7,7 +7,6 @@ const productSchema = new mongoose.Schema(
       required: [true, "Product name is required"],
       trim: true,
       uppercase: true,
-      unique: true,
     },
 
     image: {

@@ -206,7 +206,7 @@ function Page() {
 
   const shiftEndTemplate = (rowData: any) => {
   return rowData.shiftEnd
-    ? dateTemplate(rowData.shiftEnd)
+    ? dateTemplate("shiftEnd")(rowData)
     : <span className="text-gray-400">N/A</span>;
 };
 
@@ -216,7 +216,7 @@ function Page() {
       return <span className="text-gray-400">N/A</span>;
     }
     return (
-     <span>{rowData.shiftDuration.value}<span>{rowData.shiftDuration.unit}</span></span>
+     <span>{rowData.shiftDuration.value} <span className="text-xs text-gray-500">{rowData.shiftDuration.unit}</span></span>
     );
   };
 
@@ -247,15 +247,19 @@ function Page() {
     </div>
   );
 
-  const menuModel = [
-    {
-      label: "Closing Reading",
-      icon: "pi pi-book",
-      command: () => {
-        if (selectedShift) handleOpeningReading(selectedShift);
+  const menuModel = React.useMemo(
+    () => [
+      {
+        label: "Closing Reading",
+        icon: "pi pi-book",
+        disabled: selectedShift?.status === "CLOSED",
+        command: () => {
+          if (selectedShift) handleOpeningReading(selectedShift);
+        },
       },
-    },
-  ];
+    ],
+    [selectedShift]
+  );
 
   const header = (
     <div className="flex justify-between items-center bg-primary p-3 rounded-lg">
@@ -328,7 +332,7 @@ function Page() {
           <Column header="Opening" body={openingReadingsTemplate} style={{ minWidth: "120px" }} />
           <Column header="Closing" body={closingReadingsTemplate} style={{ minWidth: "120px" }} />
           <Column header="Total Litres" body={totalSalesTemplate} style={{ minWidth: "120px" }} />
-          <Column header="Shift End" body={shiftEndTemplate("shiftEnd")} style={{ minWidth: "150px" }} />
+          <Column header="Shift End" body={shiftEndTemplate} style={{ minWidth: "150px" }} />
           <Column header="Work hours" body={workTimeTemplate} />
           <Column header="Actions" body={actionTemplate} style={{ minWidth: "80px" }} />
         </DataTable>

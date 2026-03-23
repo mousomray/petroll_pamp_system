@@ -35,6 +35,7 @@ interface Tank {
     _id: string;
     tankName: string;
     capacity: number;
+    currentQuantity?: number;
 }
 
 interface Product {
@@ -163,9 +164,13 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
         }
     };
 
-    const getTankName = (tankId: string): string => {
+    const getTankDisplayLabel = (tankId: string): string => {
         const tank = tanks.find(t => t._id === tankId);
-        return tank?.tankName || `Tank ${tankId.slice(0, 6)}`;
+        if (!tank) return `Tank ${tankId.slice(0, 6)}`;
+
+        const currentQty = tank.currentQuantity ?? 0;
+        const capacity = tank.capacity ?? 0;
+        return `${tank.tankName} (Current: ${currentQty} / Capacity: ${capacity})`;
     };
 
 
@@ -247,12 +252,12 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                             ? stock.tanks.map((t: any) => ({
                                 tankId: t.tankId,
                                 openingStock: t.quantity || 0,
-                                tankName: getTankName(t.tankId)
+                                tankName: getTankDisplayLabel(t.tankId)
                             }))
                             : product.tankIds.map(tankId => ({
                                 tankId,
                                 openingStock: 0,
-                                tankName: getTankName(tankId)
+                                tankName: getTankDisplayLabel(tankId)
                             }));
 
                         setEditProduct({
@@ -275,6 +280,11 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
     // Watch productIds to update the selected products display
     const watchedProductIds = !isEditMode ? (createForm.watch("productIds") as string[]) : undefined;
 
+    const hasPendingDraftChanges = React.useMemo(() => {
+        if (isEditMode) return false;
+        return (watchedProductIds?.length ?? 0) > 0 || selectedProducts.length > 0;
+    }, [isEditMode, watchedProductIds, selectedProducts]);
+
     useEffect(() => {
         if (!isEditMode && watchedProductIds && products.length > 0) {
             const selected = products
@@ -288,7 +298,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                             tankAllocations: p.tankIds.map(tankId => ({
                                 tankId,
                                 openingStock: 0,
-                                tankName: getTankName(tankId)
+                                tankName: getTankDisplayLabel(tankId)
                             }))
                         };
                     }
@@ -671,7 +681,7 @@ function OpeningStockForm({ stockId, onClose, onSuccess }: OpeningStockFormProps
                         label="Confirm & Create Stock"
                         onClick={opningStock}
                         loading={isConfirmSubmitting}
-                        disabled={!draftSaved || isConfirmSubmitting}
+                                disabled={!draftSaved || isConfirmSubmitting || Temploading || hasPendingDraftChanges}
                         icon="pi pi-check"
                     />
                 </div>

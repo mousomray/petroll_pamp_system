@@ -176,12 +176,7 @@ function Page() {
   const amountTemplate = (rowData: any) => (
     <div className="text-right">
       <div className="font-semibold text-green-700">₹{(rowData.totalAmount || 0).toLocaleString()}</div>
-      <div className="text-xs text-gray-500">Litres: {rowData.totalLitres || 0}</div>
     </div>
-  );
-
-  const paymentMethodTemplate = (rowData: any) => (
-    <span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">{rowData.paymentMethod}</span>
   );
 
   const actionTemplate = (rowData: any) => (
@@ -415,7 +410,6 @@ function Page() {
           <Column header="Products" body={productsTemplate} style={{ minWidth: "260px" }} />
           <Column header="Qty" body={totalQtyTemplate} style={{ minWidth: "80px" }} />
           <Column header="Amount" body={amountTemplate} />
-          <Column header="Payment" body={paymentMethodTemplate} />
           <Column header="Created" body={(row: any) => formatDate(row.createdAt)} />
           <Column header="Actions" body={actionTemplate} />
         </DataTable>

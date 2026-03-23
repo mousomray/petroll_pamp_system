@@ -193,6 +193,19 @@ const createSalesForAccessory = async (req, res) => {
 
   try {
 
+    const getFinancialYear = () => {
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+
+      if (month < 3) {
+        return `${year - 1}-${year}`;
+      }
+
+      return `${year}-${year + 1}`;
+    };
+
     const userId = req.user?._id;
     const { items, paymentMethod, workerId } = req.body;
 
@@ -239,21 +252,17 @@ const createSalesForAccessory = async (req, res) => {
     let totalQty = 0;
     let totalAmount = 0;
 
-    // =====================
-    // CREATE SALES
-    // =====================
+    const financialYear = getFinancialYear();
 
-    const sales = await SalesModel.create([{
+    const [saleDoc] = await SalesModel.create([{
       saleType: "ACCESSORY",
       invoiceNumber,
       totalQty: 0,
       totalAmount: 0,
       paymentMethod: paymentMethod || "CASH",
-      workerId: workerId || null,   // ⭐ workerId added
+      workerId: workerId || null,
       userId
     }], { session });
-
-    const saleDoc = sales[0];
 
     const saleItemsData = [];
 
@@ -291,12 +300,7 @@ const createSalesForAccessory = async (req, res) => {
 
       const currentStock = stockMap[item.productId];
 
-      const currentYear = new Date().getFullYear();
-      const nextYear = currentYear + 1;
-
-      const financialYear = `${currentYear}-${nextYear}`;
-
-      let openingStock = await OpeningStockModel.findOne({
+      const openingStock = await OpeningStockModel.findOne({
         userId,
         productId: product._id,
         financialYear
@@ -304,17 +308,18 @@ const createSalesForAccessory = async (req, res) => {
 
       if (openingStock) {
 
-        openingStock.totalSale += qty;
+        await OpeningStockModel.updateOne(
+          { _id: openingStock._id },
+          {
+            $inc: {
+              totalSale: qty,
+              closingStock: -qty
+            }
+          },
+          { session }
+        );
 
-        const newClosing = openingStock.closingStock - qty;
-
-        openingStock.closingStock = newClosing < 0 ? 0 : newClosing;
-
-        await openingStock.save({ session });
-
-      }
-
-      else {
+      } else {
 
         const openingQty = currentStock;
 
@@ -342,10 +347,16 @@ const createSalesForAccessory = async (req, res) => {
 
     await SaleItemModel.insertMany(saleItemsData, { session });
 
-    saleDoc.totalQty = totalQty;
-    saleDoc.totalAmount = totalAmount;
-
-    await saleDoc.save({ session });
+    await SalesModel.updateOne(
+      { _id: saleDoc._id },
+      {
+        $set: {
+          totalQty,
+          totalAmount
+        }
+      },
+      { session }
+    );
 
     // =====================
     // TRANSACTION ENTRY
@@ -362,7 +373,7 @@ const createSalesForAccessory = async (req, res) => {
       await TransactionModel.create([{
 
         userId,
-        workerId: workerId || null, // ⭐ workerId added
+        workerId: workerId || null,
         accountHead: accessorySalesHead._id,
         amount: totalAmount,
         type: "INCOME",
@@ -381,7 +392,11 @@ const createSalesForAccessory = async (req, res) => {
       success: true,
       message: "Accessory sale created successfully",
       data: {
-        sales: saleDoc,
+        sales: {
+          ...saleDoc.toObject(),
+          totalQty,
+          totalAmount
+        },
         saleItems: saleItemsData
       }
     });
