@@ -9,5 +9,5 @@ npm-debug.log
 dist
 .vscode
 Dockerfile
-.dockerignore
+.dockerignore 
 *.log
